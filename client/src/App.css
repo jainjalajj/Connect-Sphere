@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2f3136;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #5865f2;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4752c4;
+}
+
+/* Video elements */
+video {
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* Animation classes */
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Button hover effects */
+.btn-hover {
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-hover:hover {
+  transform: translateY(-1px);
+}
+
+/* Chat input focus - CORRECTED CSS */
+.chat-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #5865f2;
+  border-color: #5865f2;
+}
+
+/* Video grid responsive */
+.video-grid {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.video-grid.one {
+  grid-template-columns: 1fr;
+}
+
+.video-grid.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.video-grid.three {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.video-grid.four {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.video-grid.many {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+@media (max-width: 768px) {
+  .video-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Additional utility classes for better styling */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Custom focus styles for better accessibility */
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #5865f2, 0 0 0 4px rgba(88, 101, 242, 0.2);
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin 2s linear infinite;
+}
