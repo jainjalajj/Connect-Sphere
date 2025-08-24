@@ -3,7 +3,9 @@
   "scripts": {
     "dev": "npm --prefix client run dev",
     "build": "npm --prefix client run build",
-    "preview": "npm --prefix client run preview"
+    "preview": "npm --prefix client run preview",
+    "install-all": "npm install --prefix client && npm install --prefix server",
+  "build-all": "npm run build --prefix client"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
