@@ -2,7 +2,7 @@
   "private": true,
   "scripts": {
     "dev": "npm --prefix client run dev",
-    "build": "npm install --prefix client && npm run build --prefix client",
+    "build": "node build-debug.js",
     "start": "npm run start --prefix server",
     "preview": "npm --prefix client run preview"
   },
