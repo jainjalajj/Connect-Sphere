@@ -23,7 +23,9 @@ app.use(helmet({
 
 // CORS configuration
 const corsOptions = {
-  origin: "*", // More permissive for development
+  origin: process.env.NODE_ENV === 'production' 
+    ? [process.env.VERCEL_URL, process.env.CLIENT_URL].filter(Boolean)
+    : ["http://localhost:5173", "http://localhost:3000"],
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: [
     "Content-Type", 
@@ -41,7 +43,9 @@ app.use(express.json());
 // Socket.IO configuration
 const io = require('socket.io')(server, {
   cors: {
-    origin: "*",
+    origin: process.env.NODE_ENV === 'production' 
+      ? [process.env.VERCEL_URL, process.env.CLIENT_URL].filter(Boolean)
+      : ["http://localhost:5173", "http://localhost:3000"],
     methods: ["GET", "POST"],
     credentials: false,
     allowedHeaders: ["my-custom-header"]

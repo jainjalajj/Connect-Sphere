@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ThemeProvider, 
-  createTheme, 
+import { useState, useEffect } from 'react';
+import {
+  ThemeProvider,
+  createTheme,
   CssBaseline,
   Box,
   Container,
@@ -16,7 +16,7 @@ import {
   Alert,
   Snackbar
 } from '@mui/material';
-import { 
+import {
   Person as PersonIcon,
   VideoCall as VideoCallIcon,
   ContentCopy as ContentCopyIcon,
@@ -121,7 +121,7 @@ function App() {
       setError('Please enter a room ID');
       return;
     }
-    
+
     setError('');
     setInRoom(true);
   };
@@ -150,9 +150,9 @@ function App() {
     return (
       <ThemeProvider theme={darkTheme}>
         <CssBaseline />
-        <Room 
-          username={username} 
-          roomId={roomId} 
+        <Room
+          username={username}
+          roomId={roomId}
           onLeave={leaveRoom}
         />
       </ThemeProvider>
@@ -185,17 +185,17 @@ function App() {
               <CardContent sx={{ p: 4 }}>
                 {/* Logo and Title */}
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
-                  <VideoCallIcon 
-                    sx={{ 
-                      fontSize: 60, 
+                  <VideoCallIcon
+                    sx={{
+                      fontSize: 60,
                       color: 'primary.main',
                       mb: 2,
-                    }} 
+                    }}
                   />
-                  <Typography 
-                    variant="h3" 
-                    component="h1" 
-                    sx={{ 
+                  <Typography
+                    variant="h3"
+                    component="h1"
+                    sx={{
                       fontWeight: 700,
                       background: 'linear-gradient(45deg, #5865f2, #57f287)',
                       WebkitBackgroundClip: 'text',
@@ -205,8 +205,8 @@ function App() {
                   >
                     ConnectSphere
                   </Typography>
-                  <Typography 
-                    variant="h6" 
+                  <Typography
+                    variant="h6"
                     color="text.secondary"
                     sx={{ fontWeight: 300 }}
                   >
@@ -280,7 +280,7 @@ function App() {
                       fullWidth
                       variant="outlined"
                       onClick={generateRoomId}
-                      sx={{ 
+                      sx={{
                         height: 48,
                         borderColor: 'primary.main',
                         '&:hover': {
@@ -297,7 +297,7 @@ function App() {
                       onClick={joinRoom}
                       disabled={!username.trim() || !roomId.trim()}
                       startIcon={<VideoCallIcon />}
-                      sx={{ 
+                      sx={{
                         height: 48,
                         background: 'linear-gradient(45deg, #5865f2, #57f287)',
                         '&:hover': {
