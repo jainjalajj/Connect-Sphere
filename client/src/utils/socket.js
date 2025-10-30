@@ -2,6 +2,7 @@ import { io } from 'socket.io-client';
 import { CONFIG } from '../config';
 
 // Create socket instance with configuration from config.js
+console.log('🔗 Connecting to server:', CONFIG.SOCKET_URL || 'http://localhost:3001');
 const socket = io(CONFIG.SOCKET_URL || 'http://localhost:3001', {
   transports: ['websocket', 'polling'],
   reconnection: true,

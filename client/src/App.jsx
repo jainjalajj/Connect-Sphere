@@ -133,7 +133,7 @@ function App() {
 
   const copyRoomLink = () => {
     if (roomId) {
-      const link = `${window.location.origin}?room=${roomId}`;
+      const link = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
       navigator.clipboard.writeText(link).then(() => {
         setSnackbar({ open: true, message: 'Room link copied to clipboard!', severity: 'success' });
       }).catch(() => {
