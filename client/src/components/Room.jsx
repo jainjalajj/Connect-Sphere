@@ -51,6 +51,7 @@ import {
   BlurOn as BlurOnIcon,
 } from '@mui/icons-material';
 import socket from '../utils/socket';
+import { CONFIG } from '../config';
 import { sounds } from '../hooks/useSound';
 import { useChatPersistence } from '../hooks/useChatPersistence';
 import { useVirtualBackground } from '../hooks/useVirtualBackground';
@@ -217,6 +218,7 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
   const peerConnections = useRef(new Map());
   const messagesEndRef = useRef(null);
   const localStreamRef = useRef(null); // stable ref for closures
+  const pendingIceCandidates = useRef(new Map()); // userId -> Array of ICE candidates
 
   const { loadMessages, saveMessages } = useChatPersistence(roomId);
 
@@ -247,7 +249,7 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
   }, [processedStream]);
 
   const pcConfig = {
-    iceServers: [
+    iceServers: CONFIG.ICE_SERVERS || [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
     ],
@@ -303,27 +305,39 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
 
   const playSoundRef = useRef(playSound);
   useEffect(() => { playSoundRef.current = playSound; }, [playSound]);
+  const startSpeaking = useCallback(() => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = true;
+        setIsAudioEnabled(true);
+        setPttActive(true);
+      }
+    }
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = false;
+        setIsAudioEnabled(false);
+        setPttActive(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!isPushToTalk) return;
 
     const handleKeyDown = (e) => {
-      if (e.code === 'Space' && !e.repeat && localStreamRef.current) {
-        const audioTrack = localStreamRef.current.getAudioTracks()[0];
-        if (audioTrack) {
-          audioTrack.enabled = true;
-          setIsAudioEnabled(true);
-          setPttActive(true);
-        }
+      if (e.code === 'Space' && !e.repeat) {
+        startSpeaking();
       }
     };
     const handleKeyUp = (e) => {
-      if (e.code === 'Space' && localStreamRef.current) {
-        const audioTrack = localStreamRef.current.getAudioTracks()[0];
-        if (audioTrack) {
-          audioTrack.enabled = false;
-          setIsAudioEnabled(false);
-          setPttActive(false);
-        }
+      if (e.code === 'Space') {
+        stopSpeaking();
       }
     };
 
@@ -333,7 +347,7 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isPushToTalk]);
+  }, [isPushToTalk, startSpeaking, stopSpeaking]);
 
   // ── WebRTC helpers ─────────────────────────────────────────────────────────
   const createPeerConnection = useCallback((userId) => {
@@ -386,10 +400,23 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
       playSoundRef.current('userJoined');
     };
 
+    const processQueuedCandidates = async (userId, pc) => {
+      const candidates = pendingIceCandidates.current.get(userId) || [];
+      for (const candidate of candidates) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error('Error adding queued ICE candidate:', e);
+        }
+      }
+      pendingIceCandidates.current.delete(userId);
+    };
+
     const onUserLeft = (data) => {
       setParticipants(prev => prev.filter(p => p.id !== data.id));
       setRemoteStreams(prev => { const m = new Map(prev); m.delete(data.id); return m; });
       setRaisedHands(prev => { const m = new Map(prev); m.delete(data.id); return m; });
+      pendingIceCandidates.current.delete(data.id);
       const pc = peerConnections.current.get(data.id);
       if (pc) { pc.close(); peerConnections.current.delete(data.id); }
       showSnackbarRef.current(`${data.username} left`, 'warning');
@@ -433,6 +460,7 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
       if (!pc) { pc = createPeerConnection(sender); peerConnections.current.set(sender, pc); }
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await processQueuedCandidates(sender, pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       socket.emit('answer', { target: sender, answer, roomId });
@@ -442,13 +470,23 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
       const pc = peerConnections.current.get(sender);
       if (pc && pc.signalingState === 'have-local-offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        await processQueuedCandidates(sender, pc);
       }
     };
 
     const onIceCandidate = async ({ sender, candidate }) => {
       const pc = peerConnections.current.get(sender);
       if (pc && pc.remoteDescription) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error('Error adding ICE candidate:', e);
+        }
+      } else {
+        if (!pendingIceCandidates.current.has(sender)) {
+          pendingIceCandidates.current.set(sender, []);
+        }
+        pendingIceCandidates.current.get(sender).push(candidate);
       }
     };
 
@@ -489,6 +527,7 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
       localStreamRef.current?.getTracks().forEach(t => t.stop());
       peerConnections.current.forEach(pc => pc.close());
       peerConnections.current.clear();
+      pendingIceCandidates.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, username]);
@@ -796,6 +835,31 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
               sx={{ cursor: 'pointer', fontWeight: 700 }}
             />
           </Tooltip>
+
+          {/* PTT Touch Button for Mobile/Touch devices */}
+          {isPushToTalk && (
+            <Button
+              variant="contained"
+              size="small"
+              color={pttActive ? "success" : "warning"}
+              onMouseDown={startSpeaking}
+              onMouseUp={stopSpeaking}
+              onMouseLeave={stopSpeaking}
+              onTouchStart={(e) => { e.preventDefault(); startSpeaking(); }}
+              onTouchEnd={(e) => { e.preventDefault(); stopSpeaking(); }}
+              sx={{
+                borderRadius: 4,
+                px: 2,
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                userSelect: 'none',
+                touchAction: 'none',
+                height: 24,
+              }}
+            >
+              {pttActive ? "🗣️ SPEAKING" : "🎙️ HOLD TO SPEAK"}
+            </Button>
+          )}
 
           {/* End call */}
           <Tooltip title="End call">
