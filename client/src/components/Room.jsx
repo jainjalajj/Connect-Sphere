@@ -75,6 +75,7 @@ const VideoPlayer = forwardRef(({
     const el = resolvedRef.current;
     if (el && stream) {
       el.srcObject = stream;
+      el.play().catch(e => console.warn('Autoplay prevented:', e));
     }
   }, [stream, resolvedRef]);
 
@@ -600,6 +601,14 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       setIsInCall(false);
     }
   };
+
+  useEffect(() => {
+    // Auto-start call on mount if requested
+    if (startWithVideo || startWithAudio) {
+      startCall(startWithVideo);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleVideo = () => {
     const track = localStreamRef.current?.getVideoTracks()[0];
