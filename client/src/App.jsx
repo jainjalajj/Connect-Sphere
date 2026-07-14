@@ -41,17 +41,17 @@ const AVATAR_COLORS = [
   '#9b59b6', '#1abc9c', '#e67e22', '#f1c40f',
 ];
 
-const darkTheme = createTheme({
+const lightTheme = createTheme({
   palette: {
-    mode: 'dark',
-    primary:    { main: '#7c6ff7', light: '#9b96ff', dark: '#5865f2' },
-    secondary:  { main: '#57f287', light: '#6bff9a', dark: '#4ae374' },
-    background: { default: '#0a0a0f', paper: 'rgba(18, 18, 30, 0.8)' },
-    text:       { primary: '#f0f0ff', secondary: 'rgba(200, 200, 220, 0.7)' },
-    error:      { main: '#ff4f57' },
-    success:    { main: '#57f287' },
-    warning:    { main: '#faa61a' },
-    divider:    'rgba(255,255,255,0.08)',
+    mode: 'light',
+    primary:    { main: '#6366f1', light: '#818cf8', dark: '#4f46e5' },
+    secondary:  { main: '#10b981', light: '#34d399', dark: '#059669' },
+    background: { default: '#f8f9ff', paper: '#ffffff' },
+    text:       { primary: '#1e1b4b', secondary: '#64748b' },
+    error:      { main: '#ef4444' },
+    success:    { main: '#10b981' },
+    warning:    { main: '#f59e0b' },
+    divider:    '#e2e8f0',
   },
   typography: {
     fontFamily: `'Outfit', 'Segoe UI', sans-serif`,
@@ -63,21 +63,20 @@ const darkTheme = createTheme({
     h6: { fontWeight: 600 },
     button: { fontFamily: `'Outfit', sans-serif`, fontWeight: 600 },
   },
-  shape: { borderRadius: 14 },
+  shape: { borderRadius: 12 },
   components: {
     MuiCssBaseline: {
-      styleOverrides: { body: { fontFamily: `'Outfit', sans-serif` } },
+      styleOverrides: { body: { fontFamily: `'Outfit', sans-serif`, background: '#f8f9ff' } },
     },
     MuiTextField: {
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: '#f8faff',
             borderRadius: 12,
-            backdropFilter: 'blur(8px)',
-            '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
-            '&:hover fieldset': { borderColor: 'rgba(124,111,247,0.5)' },
-            '&.Mui-focused fieldset': { borderColor: '#7c6ff7' },
+            '& fieldset': { borderColor: '#e0e7ff' },
+            '&:hover fieldset': { borderColor: '#6366f1' },
+            '&.Mui-focused fieldset': { borderColor: '#6366f1' },
           },
         },
       },
@@ -90,27 +89,23 @@ const darkTheme = createTheme({
           fontWeight: 600,
           fontFamily: `'Outfit', sans-serif`,
           padding: '10px 22px',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
         },
         contained: {
-          background: 'linear-gradient(135deg, #7c6ff7, #5865f2)',
-          boxShadow: '0 4px 20px rgba(88,101,242,0.35)',
+          background: 'linear-gradient(135deg, #818cf8, #6366f1)',
+          boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
+          color: '#fff',
           '&:hover': {
-            background: 'linear-gradient(135deg, #9b96ff, #7c6ff7)',
-            boxShadow: '0 8px 32px rgba(88,101,242,0.55)',
+            background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+            boxShadow: '0 8px 28px rgba(99,102,241,0.45)',
             transform: 'translateY(-2px)',
           },
-          '&:disabled': {
-            background: 'rgba(255,255,255,0.08)',
-            boxShadow: 'none',
-          },
+          '&:disabled': { background: '#e2e8f0', color: '#94a3b8', boxShadow: 'none' },
         },
         outlined: {
-          borderColor: 'rgba(124,111,247,0.5)',
-          '&:hover': {
-            borderColor: '#7c6ff7',
-            backgroundColor: 'rgba(124,111,247,0.1)',
-          },
+          borderColor: '#c7d2fe',
+          color: '#6366f1',
+          '&:hover': { borderColor: '#6366f1', backgroundColor: '#eef2ff' },
         },
       },
     },
@@ -118,46 +113,40 @@ const darkTheme = createTheme({
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          background: 'rgba(18, 18, 30, 0.75)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(255,255,255,0.09)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.06) inset',
+          background: '#ffffff',
+          border: '1px solid #e0e7ff',
+          boxShadow: '0 4px 24px rgba(99,102,241,0.08)',
           borderRadius: 20,
         },
       },
     },
     MuiPaper: {
       styleOverrides: {
-        root: {
-          backgroundImage: 'none',
-          background: 'rgba(18, 18, 30, 0.75)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.08)',
-        },
+        root: { backgroundImage: 'none' },
       },
     },
     MuiChip: {
       styleOverrides: {
-        root: {
-          fontFamily: `'Outfit', sans-serif`,
-          fontWeight: 600,
-          borderRadius: 8,
-        },
+        root: { fontFamily: `'Outfit', sans-serif`, fontWeight: 600, borderRadius: 8 },
       },
     },
     MuiSlider: {
       styleOverrides: {
-        root: { color: '#7c6ff7' },
-        thumb: { '&:hover': { boxShadow: '0 0 0 8px rgba(124,111,247,0.16)' } },
+        root: { color: '#6366f1' },
+        thumb: { '&:hover': { boxShadow: '0 0 0 8px rgba(99,102,241,0.16)' } },
       },
     },
     MuiFab: {
       styleOverrides: {
+        root: { boxShadow: '0 4px 16px rgba(0,0,0,0.12)' },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
         root: {
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(12px)',
+          backgroundColor: '#ffffff',
+          color: '#1e1b4b',
+          boxShadow: '0 1px 0 #e0e7ff',
         },
       },
     },
@@ -241,7 +230,7 @@ function App() {
 
   if (inLobby && !inRoom) {
     return (
-      <ThemeProvider theme={darkTheme}>
+      <ThemeProvider theme={lightTheme}>
         <CssBaseline />
         <LobbyScreen
           username={username}
@@ -260,7 +249,7 @@ function App() {
 
   if (inRoom) {
     return (
-      <ThemeProvider theme={darkTheme}>
+      <ThemeProvider theme={lightTheme}>
         <CssBaseline />
         <Room
           username={username}
@@ -278,54 +267,33 @@ function App() {
   }
 
   return (
-    <ThemeProvider theme={darkTheme}>
+    <ThemeProvider theme={lightTheme}>
       <CssBaseline />
       <Box
         sx={{
           minHeight: '100vh',
-          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: 2,
-          background: 'radial-gradient(ellipse at 20% 20%, rgba(88,101,242,0.12) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(235,69,158,0.08) 0%, transparent 60%), #0a0a0f',
+          background: 'linear-gradient(135deg, #eef2ff 0%, #f8f9ff 50%, #fdf4ff 100%)',
         }}
       >
         <Container maxWidth="sm">
           <Fade in timeout={800}>
-            <Card
-              elevation={0}
-              sx={{
-                position: 'relative',
-                overflow: 'visible',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  inset: -1,
-                  borderRadius: 22,
-                  padding: 1,
-                  background: 'linear-gradient(135deg, rgba(124,111,247,0.4), rgba(87,242,135,0.15), rgba(235,69,158,0.2))',
-                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                  WebkitMaskComposite: 'xor',
-                  maskComposite: 'exclude',
-                  pointerEvents: 'none',
-                },
-              }}
-            >
+            <Card elevation={2} sx={{ borderRadius: 6, p: 2, backgroundColor: '#ffffff' }}>
               <CardContent sx={{ p: 4 }}>
                 {/* Logo and Title */}
-                <Box sx={{ textAlign: 'center', mb: 4 }}>
-                  <Box sx={{ position: 'relative', display: 'inline-block', mb: 2 }}>
-                    <Box sx={{
-                      width: 72, height: 72,
-                      borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #7c6ff7, #5865f2)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      mx: 'auto',
-                      boxShadow: '0 0 40px rgba(124,111,247,0.5)',
-                    }}>
-                      <VideoCallIcon sx={{ fontSize: 38, color: 'white' }} />
-                    </Box>
+                  <Box sx={{ textAlign: 'center', mb: 4 }}>
+                  <Box sx={{
+                    width: 72, height: 72,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #818cf8, #6366f1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    mx: 'auto', mb: 2,
+                    boxShadow: '0 8px 32px rgba(99,102,241,0.3)',
+                  }}>
+                    <VideoCallIcon sx={{ fontSize: 38, color: 'white' }} />
                   </Box>
                   <Typography
                     variant="h3"

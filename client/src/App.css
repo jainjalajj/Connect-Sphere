@@ -1,153 +1,81 @@
-/* ── Animated mesh gradient background ─────────────────────────── */
-@keyframes meshMove {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-body {
-  background: #0a0a0f;
-}
-
-#root {
-  min-height: 100vh;
-}
+/* ── Fonts ──────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
 
 /* ── Custom scrollbar ───────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 3px; }
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #7c6ff7, #5865f2);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #9b96ff, #7c6ff7); }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #f1f1f5; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #c7c5f0; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a5a2e0; }
 
 /* ── Video elements ─────────────────────────────────────────────── */
 video {
   border-radius: 16px;
   object-fit: cover;
+  display: block;
 }
 
-/* ── Glassmorphism utility ──────────────────────────────────────── */
-.glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* ── Chat bubble animation ──────────────────────────────────────── */
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
+.bubble-in { animation: bubbleIn 0.22s ease forwards; }
 
-.glass-dark {
-  background: rgba(10, 10, 20, 0.6);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* ── Gradient text ──────────────────────────────────────────────── */
-.gradient-text {
-  background: linear-gradient(135deg, #7c6ff7 0%, #5865f2 40%, #57f287 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── Gradient button ────────────────────────────────────────────── */
-.btn-gradient {
-  background: linear-gradient(135deg, #7c6ff7, #5865f2) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  box-shadow: 0 4px 24px rgba(88, 101, 242, 0.35) !important;
-}
-.btn-gradient:hover {
-  box-shadow: 0 8px 32px rgba(88, 101, 242, 0.55) !important;
-  transform: translateY(-2px) !important;
-}
-.btn-gradient:disabled {
-  background: rgba(255, 255, 255, 0.08) !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
-
-/* ── Fade-in animation ──────────────────────────────────────────── */
+/* ── Fade-in ────────────────────────────────────────────────────── */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+.fade-in-up { animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 
-.fade-in-up {
-  animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+/* ── Thumbnail hover lift ───────────────────────────────────────── */
+.thumb-tile {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-
-/* ── Orb / glow blobs (decorative background) ───────────────────── */
-@keyframes orbFloat {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%       { transform: translate(30px, -30px) scale(1.05); }
-  66%       { transform: translate(-20px, 20px) scale(0.97); }
+.thumb-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(99,102,241,0.2) !important;
 }
-
-.orb {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.25;
-  pointer-events: none;
-  animation: orbFloat 14s ease-in-out infinite;
-  z-index: 0;
-}
-.orb-1 {
-  width: 500px; height: 500px;
-  background: radial-gradient(circle, #5865f2, transparent 70%);
-  top: -120px; left: -120px;
-  animation-delay: 0s;
-}
-.orb-2 {
-  width: 400px; height: 400px;
-  background: radial-gradient(circle, #eb459e, transparent 70%);
-  bottom: -80px; right: -80px;
-  animation-delay: -6s;
-}
-.orb-3 {
-  width: 300px; height: 300px;
-  background: radial-gradient(circle, #57f287, transparent 70%);
-  top: 40%; left: 60%;
-  animation-delay: -10s;
+.thumb-tile.active-speaker {
+  box-shadow: 0 0 0 3px #6366f1, 0 8px 24px rgba(99,102,241,0.25) !important;
 }
 
-/* ── Video tile glow on speaking ────────────────────────────────── */
-@keyframes speakPulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(87, 242, 135, 0.5); }
-  50%       { box-shadow: 0 0 0 5px rgba(87, 242, 135, 0.15); }
+/* ── Control button hover ───────────────────────────────────────── */
+.ctrl-btn {
+  transition: all 0.18s ease !important;
 }
-.speaking-glow { animation: speakPulse 1.4s ease-in-out infinite; }
+.ctrl-btn:hover { transform: translateY(-2px) scale(1.06) !important; }
 
 /* ── Recording pulse ────────────────────────────────────────────── */
 @keyframes recPulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(237, 66, 69, 0.7); }
-  50%       { opacity: 0.7; box-shadow: 0 0 0 8px rgba(237, 66, 69, 0); }
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
 }
+.rec-pulse { animation: recPulse 1.2s ease-in-out infinite; }
 
-/* ── Floating control dock ──────────────────────────────────────── */
-.control-dock {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 999px;
-  background: rgba(15, 15, 25, 0.75);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255,255,255,0.06) inset;
-}
-
-/* ── Reaction float animation ───────────────────────────────────── */
+/* ── Reaction float ─────────────────────────────────────────────── */
 @keyframes reactionFloat {
   0%   { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-100px) scale(1.5); }
+  100% { opacity: 0; transform: translateY(-90px) scale(1.5); }
 }
-.reaction-float { animation: reactionFloat 2s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 
-/* ── Mobile responsive ──────────────────────────────────────────── */
+/* ── Left sidebar icon ──────────────────────────────────────────── */
+.nav-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  color: #94a3b8;
+}
+.nav-icon:hover { background: #ede9fe; color: #6366f1; }
+.nav-icon.active { background: #6366f1; color: #fff; }
+
+/* ── Mobile ─────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .orb { display: none; }
-  .control-dock { padding: 8px 12px; gap: 6px; border-radius: 20px; }
+  video { border-radius: 12px; }
 }

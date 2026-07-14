@@ -66,8 +66,11 @@ const REACTIONS = ['👍', '❤️', '😂', '😮', '👏', '🎉'];
 const VideoPlayer = forwardRef(({
   stream, username, isLocal = false,
   isAudioEnabled = true, isVideoEnabled = true,
-  isScreenSharing = false, avatarColor = '#5865f2',
+  isScreenSharing = false, avatarColor = '#6366f1',
   handRaised = false, userId, roomId,
+  variant = 'large', // 'large' | 'thumb'
+  isFeatured = false,
+  onClick,
 }, ref) => {
   const videoRef = useRef(null);
   const resolvedRef = ref || videoRef;
@@ -82,102 +85,154 @@ const VideoPlayer = forwardRef(({
 
   const initials = username?.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2) || '?';
 
+  if (variant === 'thumb') {
+    return (
+      <Box
+        className={`thumb-tile${isFeatured ? ' active-speaker' : ''}`}
+        onClick={onClick}
+        sx={{
+          position: 'relative',
+          width: 80, height: 80,
+          borderRadius: '16px',
+          overflow: 'hidden',
+          flexShrink: 0,
+          border: isFeatured ? '2px solid #6366f1' : '2px solid transparent',
+          boxShadow: isFeatured
+            ? '0 0 0 3px #6366f1, 0 4px 16px rgba(99,102,241,0.25)'
+            : '0 2px 8px rgba(0,0,0,0.12)',
+          background: isVideoEnabled && stream ? '#000' : avatarColor,
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+        }}
+      >
+        {isLocal && <style>{`.local-video-mirror video { transform: scaleX(-1); }`}</style>}
+        <video
+          ref={resolvedRef}
+          autoPlay playsInline muted={isLocal}
+          style={{
+            width: '100%', height: '100%', objectFit: 'cover',
+            display: isVideoEnabled && stream ? 'block' : 'none',
+          }}
+        />
+        {(!isVideoEnabled || !stream) && (
+          <Box sx={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: avatarColor,
+          }}>
+            <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#fff', fontFamily: "'Outfit', sans-serif" }}>
+              {initials}
+            </Typography>
+          </Box>
+        )}
+        {/* Name tag */}
+        <Box sx={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)',
+          px: 0.75, py: 0.5,
+        }}>
+          <Typography variant="caption" sx={{
+            color: '#fff', fontSize: 9, fontWeight: 700,
+            fontFamily: "'Outfit', sans-serif",
+            display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {isLocal ? 'You' : username?.split(' ')[0]}
+          </Typography>
+        </Box>
+        {!isAudioEnabled && (
+          <MicOffIcon sx={{ position: 'absolute', top: 4, right: 4, fontSize: 10, color: '#ef4444', bgcolor: 'rgba(255,255,255,0.9)', borderRadius: '50%', p: 0.25 }} />
+        )}
+        {roomId && userId && (
+          <AnnotationCanvas roomId={roomId} targetUserId={userId} color={avatarColor} isLocal={isLocal} />
+        )}
+      </Box>
+    );
+  }
+
+  // Large / featured view
   return (
-    <Card
+    <Box
       className={isLocal ? 'local-video-mirror' : undefined}
       sx={{
         position: 'relative',
+        width: '100%',
         height: '100%',
-        minHeight: 180,
+        borderRadius: '20px',
         overflow: 'hidden',
-        background: 'rgba(10, 10, 20, 0.7)',
-        backdropFilter: 'blur(16px)',
-        border: isLocal ? '1.5px solid rgba(124,111,247,0.5)' : '1px solid rgba(255,255,255,0.07)',
-        boxShadow: isLocal
-          ? '0 0 0 1px rgba(124,111,247,0.3), 0 8px 32px rgba(0,0,0,0.5)'
-          : '0 8px 32px rgba(0,0,0,0.4)',
-        borderRadius: '16px',
+        background: isVideoEnabled && stream ? '#000' : `linear-gradient(135deg, ${avatarColor}22, ${avatarColor}44)`,
+        boxShadow: '0 8px 40px rgba(99,102,241,0.15)',
+        border: '1px solid #e0e7ff',
         flexShrink: 0,
-        flex: '1 1 280px',
-        maxWidth: '100%',
-        transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
       }}
     >
-      {isLocal && (
-        <style>{`.local-video-mirror video { transform: scaleX(-1); }`}</style>
-      )}
+      {isLocal && <style>{`.local-video-mirror video { transform: scaleX(-1); }`}</style>}
       <video
         ref={resolvedRef}
-        autoPlay
-        playsInline
-        muted={isLocal}
+        autoPlay playsInline muted={isLocal}
         style={{
-          width: '100%', height: '100%',
-          objectFit: 'cover',
+          width: '100%', height: '100%', objectFit: 'cover',
           display: isVideoEnabled && stream ? 'block' : 'none',
-          borderRadius: '16px',
+          borderRadius: '20px',
         }}
       />
       {roomId && userId && (
-        <AnnotationCanvas 
-          roomId={roomId} 
-          targetUserId={userId} 
-          color={avatarColor}
-          isLocal={isLocal} 
-        />
+        <AnnotationCanvas roomId={roomId} targetUserId={userId} color={avatarColor} isLocal={isLocal} />
       )}
       {(!isVideoEnabled || !stream) && (
         <Box sx={{
           position: 'absolute', inset: 0,
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          background: 'radial-gradient(ellipse at center, rgba(124,111,247,0.08) 0%, rgba(10,10,20,0.95) 70%)',
+          background: `linear-gradient(135deg, ${avatarColor}15, #f8f9ff)`,
         }}>
           <Avatar sx={{
-            width: 68, height: 68, fontSize: 26,
-            backgroundColor: avatarColor,
-            mb: 1.5,
-            boxShadow: `0 0 32px ${avatarColor}55`,
-            fontFamily: "'Outfit', sans-serif",
-            fontWeight: 700,
+            width: 96, height: 96, fontSize: 36,
+            backgroundColor: avatarColor, mb: 2,
+            fontFamily: "'Outfit', sans-serif", fontWeight: 700,
+            boxShadow: `0 8px 32px ${avatarColor}55`,
           }}>
             {initials}
           </Avatar>
-          <Typography variant="caption" color="rgba(255,255,255,0.7)" fontFamily="'Outfit', sans-serif">
+          <Typography variant="h6" sx={{ color: '#1e1b4b', fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>
             {username}
           </Typography>
+          <Typography variant="caption" color="text.secondary">Camera off</Typography>
         </Box>
       )}
-      {/* Overlay bar */}
+      {/* Bottom overlay bar */}
       <Box sx={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
+        background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 100%)',
+        px: 2, py: 1.5,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)',
-        px: 1.5, py: 1,
       }}>
-        <Typography variant="caption" sx={{
-          color: 'rgba(255,255,255,0.9)',
-          fontWeight: 600,
+        <Typography variant="subtitle2" sx={{
+          color: '#fff', fontWeight: 700,
           fontFamily: "'Outfit', sans-serif",
-          letterSpacing: '0.3px',
-          maxWidth: 120,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          textShadow: '0 1px 4px rgba(0,0,0,0.5)',
         }}>
-          {username}
+          {username}{isLocal ? ' (You)' : ''}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-          {handRaised && <span style={{ fontSize: 14 }}>✋</span>}
-          {isScreenSharing && <ScreenShareIcon sx={{ color: '#faa61a', fontSize: 14 }} />}
-          {!isVideoEnabled && <VideoOffIcon sx={{ color: '#ff4f57', fontSize: 14 }} />}
-          {!isAudioEnabled && <MicOffIcon sx={{ color: '#ff4f57', fontSize: 14 }} />}
+          {handRaised && <span style={{ fontSize: 16 }}>✋</span>}
+          {isScreenSharing && <ScreenShareIcon sx={{ color: '#f59e0b', fontSize: 16 }} />}
+          {!isAudioEnabled && (
+            <Box sx={{ bgcolor: '#ef4444', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <MicOffIcon sx={{ fontSize: 14, color: '#fff' }} />
+            </Box>
+          )}
+          {!isVideoEnabled && (
+            <Box sx={{ bgcolor: '#ef4444', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <VideoOffIcon sx={{ fontSize: 14, color: '#fff' }} />
+            </Box>
+          )}
         </Box>
       </Box>
-    </Card>
+    </Box>
   );
 });
 VideoPlayer.displayName = 'VideoPlayer';
+
 
 // ─── FloatingReaction ────────────────────────────────────────────────────────
 const FloatingReaction = ({ emoji, username, onDone }) => {
@@ -248,6 +303,8 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   const [soundEnabled, setSoundEnabled] = useState(true);
   // Virtual background
   const [showVBGPanel, setShowVBGPanel] = useState(false);
+  // Featured speaker (speaker-view layout)
+  const [featuredUserId, setFeaturedUserId] = useState('local'); // 'local' | userId string
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const localVideoRef = useRef(null);
@@ -806,9 +863,7 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   const controlBar = (
     <Box sx={{
       display: 'flex', gap: 1, flexWrap: 'wrap',
-      justifyContent: 'center', alignItems: 'center', p: 1.5,
-      backgroundColor: 'rgba(32,34,37,0.95)',
-      borderTop: '1px solid rgba(255,255,255,0.08)',
+      justifyContent: 'center', alignItems: 'center',
     }}>
       {/* Start call buttons (only when not in call) */}
       {!isInCall && (
@@ -832,11 +887,12 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
           <Tooltip title={isPushToTalk ? `PTT: ${pttActive ? 'Speaking' : 'Hold Space'}` : (isAudioEnabled ? 'Mute' : 'Unmute')}>
             <Fab
               size="small"
+              className="ctrl-btn"
               onClick={toggleAudio}
               sx={{
                 backgroundColor: isPushToTalk
-                  ? (pttActive ? 'success.main' : 'warning.main')
-                  : (isAudioEnabled ? 'success.main' : 'error.main'),
+                  ? (pttActive ? '#10b981' : '#f59e0b')
+                  : (isAudioEnabled ? '#10b981' : '#ef4444'),
                 color: 'white',
                 '&:hover': { backgroundColor: 'inherit' },
               }}
@@ -848,8 +904,9 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
           {/* Video */}
           <Tooltip title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}>
             <Fab size="small"
+              className="ctrl-btn"
               sx={{
-                backgroundColor: isVideoEnabled ? 'success.main' : 'error.main',
+                backgroundColor: isVideoEnabled ? '#10b981' : '#ef4444',
                 color: 'white', '&:hover': { backgroundColor: 'inherit' },
               }}
               onClick={toggleVideo}
@@ -860,13 +917,13 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
 
           {/* Screen share */}
           <Tooltip title={isScreenSharing ? 'Stop sharing' : 'Share screen'}>
-            <Fab size="small"
+            <Fab size="small" className="ctrl-btn"
               sx={{
-                backgroundColor: isScreenSharing ? 'primary.main' : 'background.paper',
-                color: isScreenSharing ? 'white' : 'text.primary',
-                border: isScreenSharing ? 'none' : '1px solid',
-                borderColor: 'primary.main',
-                '&:hover': { backgroundColor: 'primary.dark', color: 'white' },
+                backgroundColor: isScreenSharing ? '#6366f1' : '#f1f5f9',
+                color: isScreenSharing ? 'white' : '#6366f1',
+                border: '1px solid',
+                borderColor: '#c7d2fe',
+                '&:hover': { backgroundColor: '#6366f1', color: 'white' },
               }}
               onClick={toggleScreenShare}
             >
@@ -876,17 +933,13 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
 
           {/* Record */}
           <Tooltip title={isRecording ? 'Stop recording' : 'Start recording'}>
-            <Fab size="small"
+            <Fab size="small" className="ctrl-btn"
               sx={{
-                backgroundColor: isRecording ? 'error.main' : 'background.paper',
-                color: isRecording ? 'white' : 'error.main',
-                border: isRecording ? 'none' : '1px solid',
-                borderColor: 'error.main',
-                animation: isRecording ? 'pulse 1.2s infinite' : 'none',
-                '@keyframes pulse': {
-                  '0%, 100%': { opacity: 1 },
-                  '50%': { opacity: 0.5 },
-                },
+                backgroundColor: isRecording ? '#ef4444' : '#f1f5f9',
+                color: isRecording ? 'white' : '#ef4444',
+                border: '1px solid',
+                borderColor: '#fecaca',
+                animation: isRecording ? 'recPulse 1.2s infinite' : 'none',
               }}
               onClick={isRecording ? stopRecording : startRecording}
             >
@@ -1125,9 +1178,10 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       </Box>
 
       <Box sx={{
-        flex: 1, overflow: 'auto', p: 1,
+        flex: 1, overflow: 'auto', p: 1.5,
         '&::-webkit-scrollbar': { width: 4 },
-        '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.15)', borderRadius: 2 },
+        '&::-webkit-scrollbar-thumb': { background: '#c7d2fe', borderRadius: 2 },
+        background: '#f8f9ff',
       }}>
         {messages.length === 0 ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
@@ -1255,72 +1309,296 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
 
   // ── Desktop layout ─────────────────────────────────────────────────────────
   if (!isMobile) {
+    // Compute who is featured
+    const featuredIsLocal = featuredUserId === 'local';
+    const featuredStream = featuredIsLocal
+      ? (processedStream || localStream)
+      : remoteStreams.get(featuredUserId);
+    const featuredParticipant = featuredIsLocal
+      ? null
+      : participants.find(x => x.id === featuredUserId);
+    const featuredUsername = featuredIsLocal ? `${username} (You)` : (featuredParticipant?.username || 'Unknown');
+    const featuredAvatarColor = featuredIsLocal ? avatarColor : getAvatarColor(featuredParticipant?.username);
+    const featuredHandRaised = featuredIsLocal ? handRaised : raisedHands.has(featuredUserId);
+
     return (
-      <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'background.default' }}>
-        {/* Header */}
-        <AppBar position="static" elevation={0} sx={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <Toolbar variant="dense">
-            <VideoCallIcon sx={{ mr: 1, color: 'primary.main' }} />
-            <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1 }}>
-              ConnectSphere
-              <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                #{roomId}
+      <Box sx={{ height: '100vh', display: 'flex', backgroundColor: '#f8f9ff', overflow: 'hidden' }}>
+
+        {/* ── Left icon sidebar ── */}
+        <Box sx={{
+          width: 68, flexShrink: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          py: 2, gap: 1.5,
+          background: '#ffffff',
+          borderRight: '1px solid #e0e7ff',
+        }}>
+          {/* Logo */}
+          <Box sx={{
+            width: 40, height: 40, borderRadius: '12px',
+            background: 'linear-gradient(135deg, #818cf8, #6366f1)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            mb: 1, boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+          }}>
+            <VideoCallIcon sx={{ fontSize: 22, color: '#fff' }} />
+          </Box>
+
+          <Divider sx={{ width: 32, mb: 0.5 }} />
+
+          <Tooltip title="Participants" placement="right">
+            <Box
+              className="nav-icon"
+              onClick={() => setParticipantsDrawerOpen(true)}
+            >
+              <Badge badgeContent={participants.length + 1} color="primary" sx={{ '& .MuiBadge-badge': { fontSize: 9, minWidth: 16, height: 16 } }}>
+                <PeopleIcon fontSize="small" />
+              </Badge>
+            </Box>
+          </Tooltip>
+
+          <Tooltip title="Copy room link" placement="right">
+            <Box className="nav-icon" onClick={copyRoomLink}>
+              <CopyIcon fontSize="small" />
+            </Box>
+          </Tooltip>
+
+          <Tooltip title={soundEnabled ? 'Mute sounds' : 'Enable sounds'} placement="right">
+            <Box className="nav-icon" onClick={() => setSoundEnabled(p => !p)}>
+              <Typography sx={{ fontSize: 18 }}>{soundEnabled ? '🔔' : '🔕'}</Typography>
+            </Box>
+          </Tooltip>
+
+          <Tooltip title="Background effects" placement="right">
+            <Box
+              className={`nav-icon${showVBGPanel ? ' active' : ''}`}
+              onClick={() => setShowVBGPanel(p => !p)}
+            >
+              <BlurOnIcon fontSize="small" />
+            </Box>
+          </Tooltip>
+
+          <Box sx={{ flex: 1 }} />
+
+          <Tooltip title="Leave room" placement="right">
+            <Box
+              className="nav-icon"
+              onClick={onLeave}
+              sx={{ '&:hover': { background: '#fee2e2 !important', color: '#ef4444 !important' } }}
+            >
+              <ExitIcon fontSize="small" />
+            </Box>
+          </Tooltip>
+        </Box>
+
+        {/* ── Center: thumbnail strip + large speaker + control bar ── */}
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', position: 'relative' }}>
+
+          {/* Top header bar */}
+          <Box sx={{
+            px: 3, py: 1.5,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: '#fff', borderBottom: '1px solid #e0e7ff',
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Typography variant="subtitle1" fontWeight={700} color="text.primary">
+                Room Chat
               </Typography>
+              <Chip
+                label={`#${roomId}`}
+                size="small"
+                sx={{ bgcolor: '#eef2ff', color: '#6366f1', fontWeight: 600, fontSize: 11, height: 22 }}
+              />
+              {isRecording && (
+                <Chip
+                  label="● REC"
+                  size="small"
+                  color="error"
+                  className="rec-pulse"
+                  sx={{ height: 22, fontSize: 11 }}
+                />
+              )}
+              {pttActive && (
+                <Chip label="🎤 Speaking" size="small" color="success" sx={{ height: 22, fontSize: 11 }} />
+              )}
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              {participants.length + 1} participant{participants.length !== 0 ? 's' : ''}
             </Typography>
-            {isRecording && (
-              <Chip label="● REC" size="small" color="error" sx={{ mr: 1, animation: 'pulse 1.2s infinite' }} />
+          </Box>
+
+          {/* Main video area + thumbnail strip */}
+          <Box sx={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+
+            {/* Thumbnail strip (left of main video) */}
+            <Box sx={{
+              width: 104, flexShrink: 0,
+              display: 'flex', flexDirection: 'column',
+              gap: 1.5, p: 1.5,
+              overflowY: 'auto',
+              background: '#f8f9ff',
+              borderRight: '1px solid #e0e7ff',
+              '&::-webkit-scrollbar': { width: 3 },
+              '&::-webkit-scrollbar-thumb': { background: '#c7d2fe', borderRadius: 2 },
+            }}>
+              {/* Local thumbnail */}
+              {isInCall && (
+                <VideoPlayer
+                  ref={featuredUserId === 'local' ? localVideoRef : undefined}
+                  stream={processedStream || localStream}
+                  username={`${username} (You)`}
+                  isLocal
+                  isAudioEnabled={isAudioEnabled}
+                  isVideoEnabled={isVideoEnabled}
+                  isScreenSharing={isScreenSharing}
+                  avatarColor={avatarColor}
+                  handRaised={handRaised}
+                  userId={socket.id}
+                  roomId={roomId}
+                  variant="thumb"
+                  isFeatured={featuredUserId === 'local'}
+                  onClick={() => setFeaturedUserId('local')}
+                />
+              )}
+              {/* Remote thumbnails */}
+              {Array.from(remoteStreams).map(([uid, stream]) => {
+                const p = participants.find(x => x.id === uid);
+                return (
+                  <VideoPlayer
+                    key={uid}
+                    stream={stream}
+                    username={p?.username || 'Unknown'}
+                    isLocal={false}
+                    isAudioEnabled
+                    isVideoEnabled
+                    avatarColor={getAvatarColor(p?.username)}
+                    handRaised={raisedHands.has(uid)}
+                    userId={uid}
+                    roomId={roomId}
+                    variant="thumb"
+                    isFeatured={featuredUserId === uid}
+                    onClick={() => setFeaturedUserId(uid)}
+                  />
+                );
+              })}
+            </Box>
+
+            {/* Large featured speaker */}
+            <Box sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              {isInCall ? (
+                <Box sx={{ flex: 1, position: 'relative', minHeight: 0 }}>
+                  <VideoPlayer
+                    ref={featuredIsLocal ? localVideoRef : undefined}
+                    stream={featuredStream}
+                    username={featuredUsername}
+                    isLocal={featuredIsLocal}
+                    isAudioEnabled={featuredIsLocal ? isAudioEnabled : true}
+                    isVideoEnabled={featuredIsLocal ? isVideoEnabled : true}
+                    isScreenSharing={featuredIsLocal ? isScreenSharing : false}
+                    avatarColor={featuredAvatarColor}
+                    handRaised={featuredHandRaised}
+                    userId={featuredIsLocal ? socket.id : featuredUserId}
+                    roomId={roomId}
+                    variant="large"
+                  />
+                </Box>
+              ) : (
+                <Box sx={{
+                  flex: 1, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  gap: 3, borderRadius: '20px',
+                  border: '2px dashed #e0e7ff',
+                  background: '#fff',
+                }}>
+                  <Box sx={{
+                    width: 80, height: 80, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #eef2ff, #e0e7ff)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <VideoCallIcon sx={{ fontSize: 36, color: '#818cf8' }} />
+                  </Box>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" fontWeight={700} color="text.primary" gutterBottom>
+                      Ready to connect?
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Start a call to see everyone here
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button variant="contained" startIcon={<VideoIcon />} onClick={() => startCall(true)}>
+                      Start Video
+                    </Button>
+                    <Button variant="outlined" startIcon={<MicIcon />} onClick={() => startCall(false)}>
+                      Voice Only
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Floating control bar */}
+              <Box sx={{
+                mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
+                flexWrap: 'wrap',
+              }}>
+                <Box sx={{
+                  display: 'flex', alignItems: 'center', gap: 1,
+                  px: 2.5, py: 1.25,
+                  borderRadius: '999px',
+                  background: '#ffffff',
+                  border: '1px solid #e0e7ff',
+                  boxShadow: '0 4px 24px rgba(99,102,241,0.12)',
+                }}>
+                  {controlBar}
+                </Box>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+
+        {/* ── Right chat panel ── */}
+        <Box sx={{
+          width: 340, flexShrink: 0,
+          display: 'flex', flexDirection: 'column',
+          background: '#ffffff',
+          borderLeft: '1px solid #e0e7ff',
+        }}>
+          {/* Chat header */}
+          <Box sx={{
+            px: 2.5, py: 2,
+            display: 'flex', alignItems: 'center', gap: 1,
+            borderBottom: '1px solid #e0e7ff',
+          }}>
+            <ChatIcon sx={{ color: '#6366f1', fontSize: 20 }} />
+            <Typography variant="subtitle1" fontWeight={700} color="text.primary">
+              Room Chat
+            </Typography>
+            {unreadCount > 0 && (
+              <Chip label={unreadCount} size="small" color="error" sx={{ height: 18, fontSize: 10, ml: 'auto' }} />
             )}
-            {pttActive && <Chip label="🎤 Speaking" size="small" color="success" sx={{ mr: 1 }} />}
-            <IconButton size="small" color="inherit" onClick={copyRoomLink}><CopyIcon /></IconButton>
-            <IconButton size="small" color="inherit" onClick={() => setParticipantsDrawerOpen(true)}>
-              <Badge badgeContent={participants.length + 1} color="secondary"><PeopleIcon /></Badge>
-            </IconButton>
-            <IconButton size="small" color="inherit" onClick={onLeave}><ExitIcon /></IconButton>
-          </Toolbar>
-        </AppBar>
+          </Box>
+          {chatSection}
+        </Box>
 
         {/* Floating reactions */}
         {floatingReactions.map(r => (
           <FloatingReaction key={r.id} emoji={r.emoji} username={r.username} onDone={() => removeFloatingReaction(r.id)} />
         ))}
 
-        {/* Main area */}
-        <Box sx={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-          {/* Video + controls column */}
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-            <Box sx={{ flex: 1, display: 'flex', overflow: 'auto', background: '#0a0a0f' }}>
-              {videoSection}
-            </Box>
-            {controlBar}
-          </Box>
-
-          {/* Chat sidebar */}
-          <Paper sx={{
-            width: 320,
-            display: 'flex', flexDirection: 'column',
-            borderLeft: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 0,
-          }}>
-            {chatSection}
-          </Paper>
-
-          {/* Virtual Background panel — slides in from right */}
-          {showVBGPanel && (
-            <VirtualBackgroundPanel
-              currentBg={currentBg}
-              onSetBackground={setBackground}
-              isLoading={vbgLoading}
-              error={vbgError}
-              onClose={() => setShowVBGPanel(false)}
-            />
-          )}
-        </Box>
+        {/* Virtual Background panel */}
+        {showVBGPanel && (
+          <VirtualBackgroundPanel
+            currentBg={currentBg}
+            onSetBackground={setBackground}
+            isLoading={vbgLoading}
+            error={vbgError}
+            onClose={() => setShowVBGPanel(false)}
+          />
+        )}
 
         {/* Participants drawer */}
         <Drawer anchor="right" open={participantsDrawerOpen} onClose={() => setParticipantsDrawerOpen(false)}>
           <Box sx={{ width: 280 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
-              <Typography variant="h6">Participants</Typography>
+              <Typography variant="h6" fontWeight={700}>Participants</Typography>
               <IconButton onClick={() => setParticipantsDrawerOpen(false)}><CloseIcon /></IconButton>
             </Box>
             <Divider />
@@ -1340,6 +1618,7 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       </Box>
     );
   }
+
 
   // ── Mobile layout ──────────────────────────────────────────────────────────
   return (
