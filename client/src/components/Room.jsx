@@ -90,12 +90,17 @@ const VideoPlayer = forwardRef(({
         height: '100%',
         minHeight: 180,
         overflow: 'hidden',
-        backgroundColor: '#1a1a1a',
-        border: isLocal ? '2px solid' : '1px solid',
-        borderColor: isLocal ? 'primary.main' : 'divider',
+        background: 'rgba(10, 10, 20, 0.7)',
+        backdropFilter: 'blur(16px)',
+        border: isLocal ? '1.5px solid rgba(124,111,247,0.5)' : '1px solid rgba(255,255,255,0.07)',
+        boxShadow: isLocal
+          ? '0 0 0 1px rgba(124,111,247,0.3), 0 8px 32px rgba(0,0,0,0.5)'
+          : '0 8px 32px rgba(0,0,0,0.4)',
+        borderRadius: '16px',
         flexShrink: 0,
         flex: '1 1 280px',
         maxWidth: '100%',
+        transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
       }}
     >
       {isLocal && (
@@ -110,6 +115,7 @@ const VideoPlayer = forwardRef(({
           width: '100%', height: '100%',
           objectFit: 'cover',
           display: isVideoEnabled && stream ? 'block' : 'none',
+          borderRadius: '16px',
         }}
       />
       {roomId && userId && (
@@ -125,28 +131,47 @@ const VideoPlayer = forwardRef(({
           position: 'absolute', inset: 0,
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          backgroundColor: 'rgba(0,0,0,0.85)',
+          background: 'radial-gradient(ellipse at center, rgba(124,111,247,0.08) 0%, rgba(10,10,20,0.95) 70%)',
         }}>
-          <Avatar sx={{ width: 64, height: 64, fontSize: 24, backgroundColor: avatarColor, mb: 1 }}>
+          <Avatar sx={{
+            width: 68, height: 68, fontSize: 26,
+            backgroundColor: avatarColor,
+            mb: 1.5,
+            boxShadow: `0 0 32px ${avatarColor}55`,
+            fontFamily: "'Outfit', sans-serif",
+            fontWeight: 700,
+          }}>
             {initials}
           </Avatar>
-          <Typography variant="caption" color="white">{username}</Typography>
+          <Typography variant="caption" color="rgba(255,255,255,0.7)" fontFamily="'Outfit', sans-serif">
+            {username}
+          </Typography>
         </Box>
       )}
       {/* Overlay bar */}
       <Box sx={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        bgcolor: 'rgba(0,0,0,0.6)', px: 1, py: 0.5,
+        background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)',
+        px: 1.5, py: 1,
       }}>
-        <Typography variant="caption" color="white" fontWeight={600} noWrap sx={{ maxWidth: 120 }}>
+        <Typography variant="caption" sx={{
+          color: 'rgba(255,255,255,0.9)',
+          fontWeight: 600,
+          fontFamily: "'Outfit', sans-serif",
+          letterSpacing: '0.3px',
+          maxWidth: 120,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
           {username}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
           {handRaised && <span style={{ fontSize: 14 }}>✋</span>}
-          {isScreenSharing && <ScreenShareIcon sx={{ color: 'warning.main', fontSize: 14 }} />}
-          {!isVideoEnabled && <VideoOffIcon sx={{ color: 'error.main', fontSize: 14 }} />}
-          {!isAudioEnabled && <MicOffIcon sx={{ color: 'error.main', fontSize: 14 }} />}
+          {isScreenSharing && <ScreenShareIcon sx={{ color: '#faa61a', fontSize: 14 }} />}
+          {!isVideoEnabled && <VideoOffIcon sx={{ color: '#ff4f57', fontSize: 14 }} />}
+          {!isAudioEnabled && <MicOffIcon sx={{ color: '#ff4f57', fontSize: 14 }} />}
         </Box>
       </Box>
     </Card>
@@ -1025,13 +1050,13 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   // Video section
   const videoSection = (
     <Box sx={{
-      display: 'flex', gap: 1, p: 1,
+      display: 'flex', gap: 1.5, p: 1.5,
       overflowX: 'auto',
       flexWrap: 'wrap',
       alignContent: 'flex-start',
       flex: 1,
       minHeight: isMobile ? 200 : 0,
-      backgroundColor: '#111',
+      background: 'radial-gradient(ellipse at 10% 10%, rgba(88,101,242,0.08) 0%, transparent 50%), radial-gradient(ellipse at 90% 90%, rgba(235,69,158,0.05) 0%, transparent 50%), #0a0a0f',
     }}>
       {isInCall && (
         <VideoPlayer
@@ -1263,7 +1288,7 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
         <Box sx={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
           {/* Video + controls column */}
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-            <Box sx={{ flex: 1, display: 'flex', overflow: 'auto', backgroundColor: '#111' }}>
+            <Box sx={{ flex: 1, display: 'flex', overflow: 'auto', background: '#0a0a0f' }}>
               {videoSection}
             </Box>
             {controlBar}
@@ -1339,7 +1364,7 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {mobileTab === 0 && (
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <Box sx={{ flex: 1, overflow: 'auto', backgroundColor: '#111' }}>
+            <Box sx={{ flex: 1, overflow: 'auto', background: '#0a0a0f' }}>
               {videoSection}
             </Box>
             {controlBar}

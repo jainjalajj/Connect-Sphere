@@ -44,21 +44,40 @@ const AVATAR_COLORS = [
 const darkTheme = createTheme({
   palette: {
     mode: 'dark',
-    primary: { main: '#5865f2', light: '#7983f5', dark: '#4752c4' },
-    secondary: { main: '#57f287', light: '#6bff9a', dark: '#4ae374' },
-    background: { default: '#202225', paper: '#2f3136' },
-    text: { primary: '#ffffff', secondary: '#b9bbbe' },
-    error: { main: '#ed4245' },
-    success: { main: '#57f287' },
+    primary:    { main: '#7c6ff7', light: '#9b96ff', dark: '#5865f2' },
+    secondary:  { main: '#57f287', light: '#6bff9a', dark: '#4ae374' },
+    background: { default: '#0a0a0f', paper: 'rgba(18, 18, 30, 0.8)' },
+    text:       { primary: '#f0f0ff', secondary: 'rgba(200, 200, 220, 0.7)' },
+    error:      { main: '#ff4f57' },
+    success:    { main: '#57f287' },
+    warning:    { main: '#faa61a' },
+    divider:    'rgba(255,255,255,0.08)',
   },
+  typography: {
+    fontFamily: `'Outfit', 'Segoe UI', sans-serif`,
+    h1: { fontWeight: 800 },
+    h2: { fontWeight: 800 },
+    h3: { fontWeight: 700, letterSpacing: '-0.5px' },
+    h4: { fontWeight: 700 },
+    h5: { fontWeight: 600 },
+    h6: { fontWeight: 600 },
+    button: { fontFamily: `'Outfit', sans-serif`, fontWeight: 600 },
+  },
+  shape: { borderRadius: 14 },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: { body: { fontFamily: `'Outfit', sans-serif` } },
+    },
     MuiTextField: {
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            backgroundColor: '#36393f',
-            '&:hover': { backgroundColor: '#36393f' },
-            '&.Mui-focused': { backgroundColor: '#36393f' },
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            borderRadius: 12,
+            backdropFilter: 'blur(8px)',
+            '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
+            '&:hover fieldset': { borderColor: 'rgba(124,111,247,0.5)' },
+            '&.Mui-focused fieldset': { borderColor: '#7c6ff7' },
           },
         },
       },
@@ -67,17 +86,84 @@ const darkTheme = createTheme({
       styleOverrides: {
         root: {
           textTransform: 'none',
-          borderRadius: 8,
+          borderRadius: 12,
           fontWeight: 600,
-          padding: '10px 20px',
+          fontFamily: `'Outfit', sans-serif`,
+          padding: '10px 22px',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        },
+        contained: {
+          background: 'linear-gradient(135deg, #7c6ff7, #5865f2)',
+          boxShadow: '0 4px 20px rgba(88,101,242,0.35)',
+          '&:hover': {
+            background: 'linear-gradient(135deg, #9b96ff, #7c6ff7)',
+            boxShadow: '0 8px 32px rgba(88,101,242,0.55)',
+            transform: 'translateY(-2px)',
+          },
+          '&:disabled': {
+            background: 'rgba(255,255,255,0.08)',
+            boxShadow: 'none',
+          },
+        },
+        outlined: {
+          borderColor: 'rgba(124,111,247,0.5)',
+          '&:hover': {
+            borderColor: '#7c6ff7',
+            backgroundColor: 'rgba(124,111,247,0.1)',
+          },
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          background: 'rgba(18, 18, 30, 0.75)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.06) inset',
+          borderRadius: 20,
         },
       },
     },
     MuiPaper: {
-      styleOverrides: { root: { backgroundImage: 'none' } },
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          background: 'rgba(18, 18, 30, 0.75)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontFamily: `'Outfit', sans-serif`,
+          fontWeight: 600,
+          borderRadius: 8,
+        },
+      },
+    },
+    MuiSlider: {
+      styleOverrides: {
+        root: { color: '#7c6ff7' },
+        thumb: { '&:hover': { boxShadow: '0 0 0 8px rgba(124,111,247,0.16)' } },
+      },
+    },
+    MuiFab: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          backdropFilter: 'blur(12px)',
+        },
+      },
     },
   },
 });
+
 
 function App() {
   const [username, setUsername] = useState('');
@@ -197,42 +283,66 @@ function App() {
       <Box
         sx={{
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: 2,
+          background: 'radial-gradient(ellipse at 20% 20%, rgba(88,101,242,0.12) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(235,69,158,0.08) 0%, transparent 60%), #0a0a0f',
         }}
       >
         <Container maxWidth="sm">
-          <Fade in timeout={1000}>
+          <Fade in timeout={800}>
             <Card
-              elevation={24}
+              elevation={0}
               sx={{
-                backdropFilter: 'blur(20px)',
-                backgroundColor: 'rgba(47, 49, 54, 0.95)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                position: 'relative',
+                overflow: 'visible',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  inset: -1,
+                  borderRadius: 22,
+                  padding: 1,
+                  background: 'linear-gradient(135deg, rgba(124,111,247,0.4), rgba(87,242,135,0.15), rgba(235,69,158,0.2))',
+                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                  WebkitMaskComposite: 'xor',
+                  maskComposite: 'exclude',
+                  pointerEvents: 'none',
+                },
               }}
             >
               <CardContent sx={{ p: 4 }}>
                 {/* Logo and Title */}
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
-                  <VideoCallIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
+                  <Box sx={{ position: 'relative', display: 'inline-block', mb: 2 }}>
+                    <Box sx={{
+                      width: 72, height: 72,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #7c6ff7, #5865f2)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      mx: 'auto',
+                      boxShadow: '0 0 40px rgba(124,111,247,0.5)',
+                    }}>
+                      <VideoCallIcon sx={{ fontSize: 38, color: 'white' }} />
+                    </Box>
+                  </Box>
                   <Typography
                     variant="h3"
                     component="h1"
                     sx={{
-                      fontWeight: 700,
-                      background: 'linear-gradient(45deg, #5865f2, #57f287)',
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, #e0dfff 0%, #7c6ff7 50%, #57f287 100%)',
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
-                      mb: 1,
+                      mb: 0.75,
+                      letterSpacing: '-1px',
                     }}
                   >
                     ConnectSphere
                   </Typography>
-                  <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 300 }}>
-                    Real-time Video Communication Platform
+                  <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 400, opacity: 0.8 }}>
+                    Secure • Real-time • End-to-end encrypted
                   </Typography>
                 </Box>
 
@@ -395,18 +505,19 @@ function App() {
                     </Box>
                   </Collapse>
 
-                  {/* Action Buttons */}
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Button
                       fullWidth
                       variant="outlined"
                       onClick={generateRoomId}
                       sx={{
-                        height: 48,
-                        borderColor: 'primary.main',
+                        height: 50,
+                        borderColor: 'rgba(124,111,247,0.4)',
+                        color: 'primary.light',
                         '&:hover': {
-                          borderColor: 'primary.light',
-                          backgroundColor: 'rgba(88, 101, 242, 0.1)',
+                          borderColor: 'primary.main',
+                          backgroundColor: 'rgba(124,111,247,0.1)',
+                          transform: 'translateY(-1px)',
                         },
                       }}
                     >
@@ -418,12 +529,7 @@ function App() {
                       onClick={joinRoom}
                       disabled={!username.trim() || !roomId.trim()}
                       startIcon={<VideoCallIcon />}
-                      sx={{
-                        height: 48,
-                        background: 'linear-gradient(45deg, #5865f2, #57f287)',
-                        '&:hover': { background: 'linear-gradient(45deg, #4752c4, #4ae374)' },
-                        '&:disabled': { background: 'rgba(255, 255, 255, 0.12)' },
-                      }}
+                      sx={{ height: 50 }}
                     >
                       Join Room
                     </Button>
@@ -434,11 +540,18 @@ function App() {
                   )}
                 </Box>
 
-                {/* Feature tags */}
+                  {/* Feature tags */}
                 <Box sx={{ mt: 4, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    ✨ HD Video • 🎤 Audio • 📱 Screen Share • 💬 Chat • 🔴 Record • 🙋 Reactions
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+                    {['🎥 HD Video', '🔐 E2EE', '🖥️ Screen Share', '💬 Chat', '🎨 Annotations', '🔴 Record'].map(tag => (
+                      <Box key={tag} sx={{
+                        px: 1.5, py: 0.5, borderRadius: 99,
+                        background: 'rgba(124,111,247,0.1)',
+                        border: '1px solid rgba(124,111,247,0.2)',
+                        fontSize: '0.75rem', color: 'text.secondary',
+                      }}>{tag}</Box>
+                    ))}
+                  </Box>
                 </Box>
               </CardContent>
             </Card>
