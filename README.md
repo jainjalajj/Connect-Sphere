@@ -41,6 +41,8 @@
 9. **Sound Notifications** — synthesized Web Audio API tones for join, leave, message, and reaction events; 🔔/🔕 toggle
 10. **Full Mobile Layout** — bottom navigation tabs (Call / Chat / People) replacing the broken fixed-width panel
 11. **Virtual Background & Blur** *(requires TensorFlow.js install — see [Virtual Backgrounds](#-virtual-backgrounds))* — hook-ready pipeline for background blur and custom image backgrounds using MediaPipe Selfie Segmentation
+12. **End-to-End Encryption (E2EE)** — military-grade AES-GCM encryption for chat messages; the server cannot read your messages
+13. **Live Screen Annotations** — draw over any video feed or screen share like a laser pointer; synchronized instantly across all users
 
 ---
 
@@ -55,6 +57,7 @@
 | Toggle camera / mute mic | ✅ |
 | Push-to-talk (hold Space) | ✅ |
 | Screen sharing (desktop / window / tab) | ✅ |
+| Live Screen Annotations (laser pointer) | ✅ |
 | Virtual background / blur | ✅ *(see setup)* |
 | Local session recording (.webm) | ✅ |
 
@@ -62,6 +65,7 @@
 | Feature | Status |
 |---------|--------|
 | Real-time messaging | ✅ |
+| End-to-end encryption (AES-GCM) | ✅ |
 | Persistent history (localStorage) | ✅ |
 | Unread badge | ✅ |
 | Typing indicators | ✅ |
