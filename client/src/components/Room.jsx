@@ -57,6 +57,7 @@ import { useChatPersistence } from '../hooks/useChatPersistence';
 import { useVirtualBackground } from '../hooks/useVirtualBackground';
 import VirtualBackgroundPanel from './VirtualBackgroundPanel';
 import { deriveKeyFromPassword, importEncryptionKey, encryptMessage, decryptMessage } from '../utils/crypto';
+import AnnotationCanvas from './AnnotationCanvas';
 
 // ─── Emoji Reactions ────────────────────────────────────────────────────────
 const REACTIONS = ['👍', '❤️', '😂', '😮', '👏', '🎉'];
@@ -66,7 +67,7 @@ const VideoPlayer = forwardRef(({
   stream, username, isLocal = false,
   isAudioEnabled = true, isVideoEnabled = true,
   isScreenSharing = false, avatarColor = '#5865f2',
-  handRaised = false,
+  handRaised = false, userId, roomId,
 }, ref) => {
   const videoRef = useRef(null);
   const resolvedRef = ref || videoRef;
@@ -111,6 +112,14 @@ const VideoPlayer = forwardRef(({
           display: isVideoEnabled && stream ? 'block' : 'none',
         }}
       />
+      {roomId && userId && (
+        <AnnotationCanvas 
+          roomId={roomId} 
+          targetUserId={userId} 
+          color={avatarColor}
+          isLocal={isLocal} 
+        />
+      )}
       {(!isVideoEnabled || !stream) && (
         <Box sx={{
           position: 'absolute', inset: 0,
@@ -1035,6 +1044,8 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
           isScreenSharing={isScreenSharing}
           avatarColor={avatarColor}
           handRaised={handRaised}
+          userId={socket.id}
+          roomId={roomId}
         />
       )}
       {Array.from(remoteStreams).map(([userId, stream]) => {
@@ -1049,6 +1060,8 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
             isVideoEnabled
             avatarColor={getAvatarColor(p?.username)}
             handRaised={raisedHands.has(userId)}
+            userId={userId}
+            roomId={roomId}
           />
         );
       })}

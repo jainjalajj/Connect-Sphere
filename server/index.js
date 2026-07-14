@@ -355,6 +355,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle live screen annotations
+  socket.on('annotate', (data) => {
+    try {
+      const { roomId, targetUserId, points, color } = data;
+      if (roomId && targetUserId && points) {
+        socket.to(roomId).emit('annotation-received', { targetUserId, points, color, senderId: socket.id });
+      }
+    } catch (error) {
+      console.error('Error handling annotation:', error);
+    }
+  });
+
   // Handle raise-hand toggle
   socket.on('raise-hand', (data) => {
     try {
