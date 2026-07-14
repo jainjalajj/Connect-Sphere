@@ -56,6 +56,7 @@ import { sounds } from '../hooks/useSound';
 import { useChatPersistence } from '../hooks/useChatPersistence';
 import { useVirtualBackground } from '../hooks/useVirtualBackground';
 import VirtualBackgroundPanel from './VirtualBackgroundPanel';
+import { deriveKeyFromPassword, importEncryptionKey, encryptMessage, decryptMessage } from '../utils/crypto';
 
 // ─── Emoji Reactions ────────────────────────────────────────────────────────
 const REACTIONS = ['👍', '❤️', '😂', '😮', '👏', '🎉'];
@@ -176,7 +177,7 @@ const FloatingReaction = ({ emoji, username, onDone }) => {
 };
 
 // ─── Main Room Component ─────────────────────────────────────────────────────
-const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '#5865f2', startWithVideo = true, startWithAudio = true, onLeave }) => {
+const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarColor = '#5865f2', startWithVideo = true, startWithAudio = true, onLeave }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -219,6 +220,18 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
   const messagesEndRef = useRef(null);
   const localStreamRef = useRef(null); // stable ref for closures
   const pendingIceCandidates = useRef(new Map()); // userId -> Array of ICE candidates
+
+  // E2EE Crypto Key Promise
+  const cryptoKeyPromiseRef = useRef(null);
+  if (!cryptoKeyPromiseRef.current) {
+    if (password) {
+      cryptoKeyPromiseRef.current = deriveKeyFromPassword(password, roomId);
+    } else if (e2eKey) {
+      cryptoKeyPromiseRef.current = importEncryptionKey(e2eKey);
+    } else {
+      cryptoKeyPromiseRef.current = deriveKeyFromPassword(roomId, 'fallback');
+    }
+  }
 
   const { loadMessages, saveMessages } = useChatPersistence(roomId);
 
@@ -376,15 +389,21 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
   useEffect(() => {
     socket.emit('join-room', roomId, username, password || null, maxParticipants);
 
-    const onRoomData = (data) => {
+    const onRoomData = async (data) => {
       const otherUsers = (data.users || []).filter(u => u.id !== socket.id);
       setParticipants(otherUsers);
       if (data.messages?.length) {
+        const key = await cryptoKeyPromiseRef.current;
+        const decryptedMessages = await Promise.all(data.messages.map(async (m) => ({
+          ...m,
+          message: await decryptMessage(m.message, key)
+        })));
+        
         setMessages(prev => {
           // Merge server messages with local cache, deduplicate by id
           const ids = new Set(prev.map(m => m.id));
           const merged = [...prev];
-          data.messages.forEach(m => { if (!ids.has(m.id)) merged.push(m); });
+          decryptedMessages.forEach(m => { if (!ids.has(m.id)) merged.push(m); });
           merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
           return merged;
         });
@@ -423,8 +442,11 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
       playSoundRef.current('userLeft');
     };
 
-    const onReceiveMessage = (data) => {
-      setMessages(prev => [...prev, data]);
+    const onReceiveMessage = async (data) => {
+      const key = await cryptoKeyPromiseRef.current;
+      const decrypted = await decryptMessage(data.message, key);
+      const dataWithDecrypted = { ...data, message: decrypted };
+      setMessages(prev => [...prev, dataWithDecrypted]);
       if (!isChatVisible) {
         setUnreadCount(c => c + 1);
         playSoundRef.current('message');
@@ -714,11 +736,15 @@ const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '
   };
 
   // ── Chat ───────────────────────────────────────────────────────────────────
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!message.trim()) return;
+    
+    const key = await cryptoKeyPromiseRef.current;
+    const encryptedMessage = await encryptMessage(message.trim(), key);
+    
     socket.emit('send-message', {
       roomId, username,
-      message: message.trim(),
+      message: encryptedMessage,
       timestamp: new Date().toISOString(),
     });
     setMessage('');

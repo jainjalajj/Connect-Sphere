@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import Room from './components/Room';
 import LobbyScreen from './components/LobbyScreen';
+import { generateEncryptionKey } from './utils/crypto';
 import './App.css';
 
 // Avatar color palette
@@ -83,6 +84,7 @@ function App() {
   const [roomId, setRoomId] = useState('');
   const [password, setPassword] = useState('');
   const [maxParticipants, setMaxParticipants] = useState(8);
+  const [e2eKey, setE2eKey] = useState('');
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
   const [inRoom, setInRoom] = useState(false);
   const [inLobby, setInLobby] = useState(false);
@@ -95,6 +97,15 @@ function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
     if (roomParam) setRoomId(roomParam);
+    
+    // Check for E2E key in hash
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#key=')) {
+      setE2eKey(hash.substring(5));
+      // Remove hash from URL to keep it hidden
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+
     // Restore last avatar color
     const saved = localStorage.getItem('cs_avatar_color');
     if (saved && AVATAR_COLORS.includes(saved)) setAvatarColor(saved);
@@ -109,10 +120,16 @@ function App() {
     };
   }, []);
 
-  const generateRoomId = () => {
+  const generateRoomId = async () => {
     const id = Math.random().toString(36).substring(2, 15);
     setRoomId(id);
-    setSnackbar({ open: true, message: 'Room ID generated!', severity: 'success' });
+    try {
+      const key = await generateEncryptionKey();
+      setE2eKey(key);
+      setSnackbar({ open: true, message: 'Room ID & E2EE Key generated!', severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Room ID generated, but E2EE generation failed', severity: 'warning' });
+    }
   };
 
   const joinRoom = () => {
@@ -127,7 +144,7 @@ function App() {
 
   const copyRoomLink = () => {
     if (!roomId) return;
-    const link = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+    const link = `${window.location.origin}${window.location.pathname}?room=${roomId}${e2eKey ? `#key=${e2eKey}` : ''}`;
     navigator.clipboard.writeText(link)
       .then(() => setSnackbar({ open: true, message: 'Room link copied!', severity: 'success' }))
       .catch(() => setSnackbar({ open: true, message: 'Failed to copy link', severity: 'error' }));
@@ -163,6 +180,7 @@ function App() {
           username={username}
           roomId={roomId}
           password={password}
+          e2eKey={e2eKey}
           maxParticipants={maxParticipants}
           avatarColor={avatarColor}
           startWithVideo={mediaPrefs.startWithVideo}
