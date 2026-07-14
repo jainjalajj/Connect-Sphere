@@ -98,6 +98,15 @@ function App() {
     // Restore last avatar color
     const saved = localStorage.getItem('cs_avatar_color');
     if (saved && AVATAR_COLORS.includes(saved)) setAvatarColor(saved);
+
+    // Bind global snackbar handler for socket.js or utility alerts
+    window.showSnackbar = (msg, severity = 'info') => {
+      setSnackbar({ open: true, message: msg, severity });
+    };
+
+    return () => {
+      window.showSnackbar = null;
+    };
   }, []);
 
   const generateRoomId = () => {

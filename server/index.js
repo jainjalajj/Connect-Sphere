@@ -22,10 +22,28 @@ app.use(helmet({
 }));
 
 // CORS configuration
+const allowedOrigins = [process.env.CLIENT_URL, process.env.VERCEL_URL].filter(Boolean);
+
+const checkOrigin = (origin, callback) => {
+  // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+  if (!origin) {
+    return callback(null, true);
+  }
+  
+  const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+  const isVercel = origin.endsWith('.vercel.app');
+  const isCustomAllowed = allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed));
+  
+  if (isLocalhost || isVercel || isCustomAllowed) {
+    callback(null, true);
+  } else {
+    console.warn(`Blocked by CORS: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
+  }
+};
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.VERCEL_URL, process.env.CLIENT_URL].filter(Boolean)
-    : ["http://localhost:5173", "http://localhost:3000"],
+  origin: checkOrigin,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: [
     "Content-Type", 
@@ -43,9 +61,7 @@ app.use(express.json());
 // Socket.IO configuration
 const io = require('socket.io')(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? [process.env.VERCEL_URL, process.env.CLIENT_URL].filter(Boolean)
-      : ["http://localhost:5173", "http://localhost:3000"],
+    origin: checkOrigin,
     methods: ["GET", "POST"],
     credentials: false,
     allowedHeaders: ["my-custom-header"]
