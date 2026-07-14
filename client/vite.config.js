@@ -6,13 +6,26 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    host: true
+    host: true,
   },
   css: {
-    postcss: './postcss.config.cjs'
+    postcss: './postcss.config.cjs',
   },
   build: {
     outDir: 'dist',
-    sourcemap: false
-  }
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        // Split TF.js into its own chunk so the main bundle stays small
+        manualChunks: {
+          tfjs: [
+            '@tensorflow/tfjs-core',
+            '@tensorflow/tfjs-backend-webgl',
+            '@tensorflow/tfjs-converter',
+            '@tensorflow-models/body-segmentation',
+          ],
+        },
+      },
+    },
+  },
 })

@@ -13,7 +13,7 @@ const socket = io(CONFIG.SOCKET_URL || 'http://localhost:3001', {
   autoConnect: true,
   forceNew: true,
   path: '/socket.io',
-  withCredentials: false, // Disable for development
+  withCredentials: false,
   extraHeaders: {
     "my-custom-header": "connect-sphere"
   }
@@ -35,12 +35,10 @@ socket.on('disconnect', (reason) => {
 
 socket.on('connect_error', (error) => {
   console.error('Connection error:', error.message);
-  // Show error in UI if possible
   if (window.showSnackbar) {
     window.showSnackbar('Connection error: ' + error.message, 'error');
   }
 });
-console.log('Attempting to connect to:', CONFIG.SOCKET_URL);
 
 socket.on('reconnect', (attemptNumber) => {
   console.log('Successfully reconnected to server after', attemptNumber, 'attempts');
@@ -71,8 +69,5 @@ socket.on('join-error', (error) => {
   alert('Error joining room: ' + error);
 });
 
-// Start the connection
-socket.connect();
-
-// Export configured socket instance
+// Export configured socket instance (autoConnect: true handles connection)
 export default socket;

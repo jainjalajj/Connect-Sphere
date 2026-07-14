@@ -67,17 +67,33 @@ const getRoomUsers = (roomId) => {
   return room ? Array.from(room.users.values()) : [];
 };
 
-const addUserToRoom = (roomId, userId, username) => {
+const MAX_PARTICIPANTS = parseInt(process.env.MAX_PARTICIPANTS || '20', 10);
+
+const addUserToRoom = (roomId, userId, username, password = null, maxParticipants = MAX_PARTICIPANTS) => {
   if (!rooms.has(roomId)) {
+    // First user creates the room and sets the password/limit
     rooms.set(roomId, {
       id: roomId,
       users: new Map(),
       messages: [],
       createdAt: new Date(),
+      password: password || null,
+      maxParticipants,
     });
   }
-  
+
   const room = rooms.get(roomId);
+
+  // Password check (skip if room has no password)
+  if (room.password && room.password !== password) {
+    return { error: 'incorrect_password' };
+  }
+
+  // Participant limit check
+  if (room.users.size >= room.maxParticipants) {
+    return { error: 'room_full', max: room.maxParticipants };
+  }
+
   const userData = {
     id: userId,
     username: username,
@@ -101,10 +117,11 @@ const removeUserFromRoom = (roomId, userId) => {
       rooms.delete(roomId);
     }
     
+    users.delete(userId); // Always clean up the users map
     return userData;
   }
   
-  users.delete(userId);
+  users.delete(userId); // Clean up even if room not found
   return null;
 };
 
@@ -134,7 +151,7 @@ io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
   // Handle user joining a room
-  socket.on('join-room', (roomId, username) => {
+  socket.on('join-room', (roomId, username, password, maxParticipants) => {
     try {
       console.log('Join room request:', { roomId, username, socketId: socket.id });
       
@@ -153,10 +170,21 @@ io.on('connection', (socket) => {
         }
       }
 
-      // Join new room
+      // Join new room (password and maxParticipants only apply when creating)
+      const result = addUserToRoom(roomId, socket.id, username, password || null, maxParticipants);
+
+      if (result && result.error) {
+        if (result.error === 'incorrect_password') {
+          socket.emit('join-error', 'Incorrect room password');
+        } else if (result.error === 'room_full') {
+          socket.emit('join-error', `Room is full (max ${result.max} participants)`);
+        }
+        return;
+      }
+
+      const userData = result;
       socket.join(roomId);
-      const userData = addUserToRoom(roomId, socket.id, username);
-      
+
       console.log(`User ${username} (${socket.id}) joined room ${roomId}`);
 
       // Send room data to the joining user
@@ -296,6 +324,30 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error handling chat message:', error);
       socket.emit('error', 'Failed to send message');
+    }
+  });
+
+  // Handle emoji reactions
+  socket.on('send-reaction', (data) => {
+    try {
+      const { roomId, username, emoji } = data;
+      if (roomId && username && emoji) {
+        io.to(roomId).emit('reaction-received', { username, emoji, senderId: socket.id });
+      }
+    } catch (error) {
+      console.error('Error handling reaction:', error);
+    }
+  });
+
+  // Handle raise-hand toggle
+  socket.on('raise-hand', (data) => {
+    try {
+      const { roomId, username, raised } = data;
+      if (roomId && username) {
+        io.to(roomId).emit('hand-raised', { userId: socket.id, username, raised });
+      }
+    } catch (error) {
+      console.error('Error handling raise-hand:', error);
     }
   });
 

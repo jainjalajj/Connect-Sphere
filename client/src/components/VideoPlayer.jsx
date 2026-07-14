@@ -87,7 +87,8 @@ const VideoPlayer = forwardRef(({
         video.current.srcObject = null;
       }
     };
-  }, [stream, ref]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stream]);
 
   // Get initials for avatar
   const getInitials = (name) => {
@@ -109,6 +110,7 @@ const VideoPlayer = forwardRef(({
   return (
     <Card 
       elevation={isLocal ? 8 : 4} 
+      className={isLocal ? 'local-video-mirror' : undefined}
       sx={{ 
         height: '100%', 
         position: 'relative', 
@@ -373,7 +375,7 @@ const VideoPlayer = forwardRef(({
       {isLocal && (
         <style>
           {`
-            video {
+            .local-video-mirror video {
               transform: scaleX(-1);
             }
           `}

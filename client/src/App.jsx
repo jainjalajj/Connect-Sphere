@@ -5,7 +5,6 @@ import {
   CssBaseline,
   Box,
   Container,
-  Paper,
   TextField,
   Button,
   Typography,
@@ -14,45 +13,42 @@ import {
   Fade,
   InputAdornment,
   Alert,
-  Snackbar
+  Snackbar,
+  Avatar,
+  Tooltip,
+  Slider,
+  Collapse,
 } from '@mui/material';
 import {
   Person as PersonIcon,
   VideoCall as VideoCallIcon,
   ContentCopy as ContentCopyIcon,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Lock as LockIcon,
+  People as PeopleIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
-import Room from './components/Room'; // Fixed: Using Room instead of RoomRedesigned
+import Room from './components/Room';
+import LobbyScreen from './components/LobbyScreen';
 import './App.css';
 
-// Create dark theme inspired by Discord
+// Avatar color palette
+const AVATAR_COLORS = [
+  '#5865f2', '#57f287', '#ed4245', '#faa61a',
+  '#eb459e', '#3498db', '#2ecc71', '#e74c3c',
+  '#9b59b6', '#1abc9c', '#e67e22', '#f1c40f',
+];
+
 const darkTheme = createTheme({
   palette: {
     mode: 'dark',
-    primary: {
-      main: '#5865f2',
-      light: '#7983f5',
-      dark: '#4752c4',
-    },
-    secondary: {
-      main: '#57f287',
-      light: '#6bff9a',
-      dark: '#4ae374',
-    },
-    background: {
-      default: '#202225',
-      paper: '#2f3136',
-    },
-    text: {
-      primary: '#ffffff',
-      secondary: '#b9bbbe',
-    },
-    error: {
-      main: '#ed4245',
-    },
-    success: {
-      main: '#57f287',
-    },
+    primary: { main: '#5865f2', light: '#7983f5', dark: '#4752c4' },
+    secondary: { main: '#57f287', light: '#6bff9a', dark: '#4ae374' },
+    background: { default: '#202225', paper: '#2f3136' },
+    text: { primary: '#ffffff', secondary: '#b9bbbe' },
+    error: { main: '#ed4245' },
+    success: { main: '#57f287' },
   },
   components: {
     MuiTextField: {
@@ -60,12 +56,8 @@ const darkTheme = createTheme({
         root: {
           '& .MuiOutlinedInput-root': {
             backgroundColor: '#36393f',
-            '&:hover': {
-              backgroundColor: '#36393f',
-            },
-            '&.Mui-focused': {
-              backgroundColor: '#36393f',
-            },
+            '&:hover': { backgroundColor: '#36393f' },
+            '&.Mui-focused': { backgroundColor: '#36393f' },
           },
         },
       },
@@ -81,11 +73,7 @@ const darkTheme = createTheme({
       },
     },
     MuiPaper: {
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none',
-        },
-      },
+      styleOverrides: { root: { backgroundImage: 'none' } },
     },
   },
 });
@@ -93,17 +81,23 @@ const darkTheme = createTheme({
 function App() {
   const [username, setUsername] = useState('');
   const [roomId, setRoomId] = useState('');
+  const [password, setPassword] = useState('');
+  const [maxParticipants, setMaxParticipants] = useState(8);
+  const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
   const [inRoom, setInRoom] = useState(false);
+  const [inLobby, setInLobby] = useState(false);
+  const [mediaPrefs, setMediaPrefs] = useState({ startWithVideo: true, startWithAudio: true });
   const [error, setError] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   useEffect(() => {
-    // Check URL parameters for direct room join
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
-    if (roomParam) {
-      setRoomId(roomParam);
-    }
+    if (roomParam) setRoomId(roomParam);
+    // Restore last avatar color
+    const saved = localStorage.getItem('cs_avatar_color');
+    if (saved && AVATAR_COLORS.includes(saved)) setAvatarColor(saved);
   }, []);
 
   const generateRoomId = () => {
@@ -113,38 +107,44 @@ function App() {
   };
 
   const joinRoom = () => {
-    if (!username.trim()) {
-      setError('Please enter your username');
-      return;
-    }
-    if (!roomId.trim()) {
-      setError('Please enter a room ID');
-      return;
-    }
-
+    if (!username.trim()) { setError('Please enter your username'); return; }
+    if (!roomId.trim()) { setError('Please enter a room ID'); return; }
+    localStorage.setItem('cs_avatar_color', avatarColor);
     setError('');
-    setInRoom(true);
+    setInLobby(true); // go to lobby first
   };
 
-  const leaveRoom = () => {
-    setInRoom(false);
-    setError('');
-  };
+  const leaveRoom = () => { setInRoom(false); setInLobby(false); setError(''); };
 
   const copyRoomLink = () => {
-    if (roomId) {
-      const link = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-      navigator.clipboard.writeText(link).then(() => {
-        setSnackbar({ open: true, message: 'Room link copied to clipboard!', severity: 'success' });
-      }).catch(() => {
-        setSnackbar({ open: true, message: 'Failed to copy link', severity: 'error' });
-      });
-    }
+    if (!roomId) return;
+    const link = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+    navigator.clipboard.writeText(link)
+      .then(() => setSnackbar({ open: true, message: 'Room link copied!', severity: 'success' }))
+      .catch(() => setSnackbar({ open: true, message: 'Failed to copy link', severity: 'error' }));
   };
 
-  const handleSnackbarClose = () => {
-    setSnackbar({ ...snackbar, open: false });
-  };
+  const getInitials = (name) =>
+    name?.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2) || '?';
+
+  if (inLobby && !inRoom) {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <LobbyScreen
+          username={username}
+          roomId={roomId}
+          avatarColor={avatarColor}
+          onJoin={(prefs) => {
+            setMediaPrefs(prefs);
+            setInLobby(false);
+            setInRoom(true);
+          }}
+          onBack={() => setInLobby(false)}
+        />
+      </ThemeProvider>
+    );
+  }
 
   if (inRoom) {
     return (
@@ -153,6 +153,11 @@ function App() {
         <Room
           username={username}
           roomId={roomId}
+          password={password}
+          maxParticipants={maxParticipants}
+          avatarColor={avatarColor}
+          startWithVideo={mediaPrefs.startWithVideo}
+          startWithAudio={mediaPrefs.startWithAudio}
           onLeave={leaveRoom}
         />
       </ThemeProvider>
@@ -185,13 +190,7 @@ function App() {
               <CardContent sx={{ p: 4 }}>
                 {/* Logo and Title */}
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
-                  <VideoCallIcon
-                    sx={{
-                      fontSize: 60,
-                      color: 'primary.main',
-                      mb: 2,
-                    }}
-                  />
+                  <VideoCallIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
                   <Typography
                     variant="h3"
                     component="h1"
@@ -205,41 +204,76 @@ function App() {
                   >
                     ConnectSphere
                   </Typography>
-                  <Typography
-                    variant="h6"
-                    color="text.secondary"
-                    sx={{ fontWeight: 300 }}
-                  >
+                  <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 300 }}>
                     Real-time Video Communication Platform
                   </Typography>
                 </Box>
 
-                {/* Form */}
-                <Box component="form" sx={{ space: 2 }}>
-                  {/* Username Field */}
-                  <TextField
-                    fullWidth
-                    label="Enter your username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    error={error.includes('username')}
-                    helperText={error.includes('username') ? error : ''}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <PersonIcon color="primary" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{ mb: 3 }}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        joinRoom();
-                      }
-                    }}
-                  />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {/* Avatar color picker + username row */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {/* Preview avatar */}
+                    <Avatar
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        backgroundColor: avatarColor,
+                        fontSize: 20,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                        border: '2px solid rgba(255,255,255,0.2)',
+                      }}
+                    >
+                      {getInitials(username) || <PersonIcon />}
+                    </Avatar>
 
-                  {/* Room ID Field */}
+                    <TextField
+                      fullWidth
+                      label="Enter your username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      error={error.includes('username')}
+                      helperText={error.includes('username') ? error : ''}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonIcon color="primary" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') joinRoom(); }}
+                    />
+                  </Box>
+
+                  {/* Color picker row */}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                      Pick your avatar color
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {AVATAR_COLORS.map((color) => (
+                        <Tooltip key={color} title={color}>
+                          <Box
+                            onClick={() => setAvatarColor(color)}
+                            sx={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: '50%',
+                              backgroundColor: color,
+                              cursor: 'pointer',
+                              border: avatarColor === color
+                                ? '3px solid white'
+                                : '2px solid transparent',
+                              transition: 'transform 0.15s',
+                              '&:hover': { transform: 'scale(1.2)' },
+                            }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </Box>
+                  </Box>
+
+                  {/* Room ID field */}
                   <TextField
                     fullWidth
                     label="Room ID"
@@ -261,21 +295,81 @@ function App() {
                             startIcon={<ContentCopyIcon />}
                             sx={{ minWidth: 'auto', p: 1 }}
                           >
-                            Copy Link
+                            Copy
                           </Button>
                         </InputAdornment>
                       ),
                     }}
-                    sx={{ mb: 3 }}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        joinRoom();
-                      }
-                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') joinRoom(); }}
                   />
 
+                  {/* Advanced options toggle */}
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      color: 'text.secondary',
+                      '&:hover': { color: 'text.primary' },
+                    }}
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                  >
+                    <Typography variant="body2" sx={{ mr: 0.5 }}>
+                      Advanced options
+                    </Typography>
+                    {showAdvanced ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                  </Box>
+
+                  <Collapse in={showAdvanced}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+                      {/* Room password */}
+                      <TextField
+                        fullWidth
+                        label="Room Password (optional)"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        helperText="Set a password when creating a room, or enter it to join a protected room"
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LockIcon color="primary" />
+                            </InputAdornment>
+                          ),
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') joinRoom(); }}
+                      />
+
+                      {/* Participant limit */}
+                      <Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <PeopleIcon fontSize="small" color="primary" />
+                            Max participants
+                          </Typography>
+                          <Typography variant="body2" color="primary.main" fontWeight={700}>
+                            {maxParticipants}
+                          </Typography>
+                        </Box>
+                        <Slider
+                          value={maxParticipants}
+                          onChange={(_, v) => setMaxParticipants(v)}
+                          min={2}
+                          max={20}
+                          step={1}
+                          marks={[
+                            { value: 2, label: '2' },
+                            { value: 8, label: '8' },
+                            { value: 20, label: '20' },
+                          ]}
+                          sx={{ color: 'primary.main' }}
+                        />
+                      </Box>
+                    </Box>
+                  </Collapse>
+
                   {/* Action Buttons */}
-                  <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
                     <Button
                       fullWidth
                       variant="outlined"
@@ -300,30 +394,23 @@ function App() {
                       sx={{
                         height: 48,
                         background: 'linear-gradient(45deg, #5865f2, #57f287)',
-                        '&:hover': {
-                          background: 'linear-gradient(45deg, #4752c4, #4ae374)',
-                        },
-                        '&:disabled': {
-                          background: 'rgba(255, 255, 255, 0.12)',
-                        },
+                        '&:hover': { background: 'linear-gradient(45deg, #4752c4, #4ae374)' },
+                        '&:disabled': { background: 'rgba(255, 255, 255, 0.12)' },
                       }}
                     >
                       Join Room
                     </Button>
                   </Box>
 
-                  {/* Error Display */}
-                  {error && (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                      {error}
-                    </Alert>
+                  {error && !error.includes('username') && !error.includes('room') && (
+                    <Alert severity="error">{error}</Alert>
                   )}
                 </Box>
 
-                {/* Features */}
+                {/* Feature tags */}
                 <Box sx={{ mt: 4, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    ✨ HD Video Calls • 🎤 Crystal Clear Audio • 📱 Screen Sharing • 💬 Real-time Chat
+                  <Typography variant="body2" color="text.secondary">
+                    ✨ HD Video • 🎤 Audio • 📱 Screen Share • 💬 Chat • 🔴 Record • 🙋 Reactions
                   </Typography>
                 </Box>
               </CardContent>
@@ -331,14 +418,13 @@ function App() {
           </Fade>
         </Container>
 
-        {/* Snackbar for notifications */}
         <Snackbar
           open={snackbar.open}
           autoHideDuration={4000}
-          onClose={handleSnackbarClose}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
-          <Alert onClose={handleSnackbarClose} severity={snackbar.severity}>
+          <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
             {snackbar.message}
           </Alert>
         </Snackbar>

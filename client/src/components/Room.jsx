@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import {
   Box,
-  Grid,
   Paper,
   Typography,
   Button,
@@ -12,11 +11,6 @@ import {
   ListItemAvatar,
   Avatar,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Fab,
   Drawer,
   AppBar,
   Toolbar,
@@ -28,7 +22,12 @@ import {
   useTheme,
   useMediaQuery,
   Snackbar,
-  Alert
+  Alert,
+  Tooltip,
+  Fab,
+  BottomNavigation,
+  BottomNavigationAction,
+  Slide,
 } from '@mui/material';
 import {
   Videocam as VideoIcon,
@@ -40,118 +39,147 @@ import {
   CallEnd as CallEndIcon,
   Send as SendIcon,
   People as PeopleIcon,
-  Minimize as MinimizeIcon,
-  Fullscreen as FullscreenIcon,
   Chat as ChatIcon,
-  Close as CloseIcon,
   ExitToApp as ExitIcon,
-  ContentCopy as CopyIcon
+  ContentCopy as CopyIcon,
+  FiberManualRecord as RecordIcon,
+  Stop as StopIcon,
+  PanTool as RaiseHandIcon,
+  EmojiEmotions as EmojiIcon,
+  Close as CloseIcon,
+  VideoCall as VideoCallIcon,
+  BlurOn as BlurOnIcon,
 } from '@mui/icons-material';
 import socket from '../utils/socket';
+import { sounds } from '../hooks/useSound';
+import { useChatPersistence } from '../hooks/useChatPersistence';
+import { useVirtualBackground } from '../hooks/useVirtualBackground';
+import VirtualBackgroundPanel from './VirtualBackgroundPanel';
 
-// VideoPlayer Component
-const VideoPlayer = forwardRef(({ 
-  stream, 
-  username, 
-  isLocal = false, 
-  isAudioEnabled = true, 
-  isVideoEnabled = true,
-  isScreenSharing = false,
-  userId = null 
+// ─── Emoji Reactions ────────────────────────────────────────────────────────
+const REACTIONS = ['👍', '❤️', '😂', '😮', '👏', '🎉'];
+
+// ─── Inline VideoPlayer ──────────────────────────────────────────────────────
+const VideoPlayer = forwardRef(({
+  stream, username, isLocal = false,
+  isAudioEnabled = true, isVideoEnabled = true,
+  isScreenSharing = false, avatarColor = '#5865f2',
+  handRaised = false,
 }, ref) => {
   const videoRef = useRef(null);
-  
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream]);
+  const resolvedRef = ref || videoRef;
 
-  // Forward ref to the video element
   useEffect(() => {
-    if (ref && ref.current !== videoRef.current) {
-      ref.current = videoRef.current;
+    const el = resolvedRef.current;
+    if (el && stream) {
+      el.srcObject = stream;
     }
-  }, [ref]);
+  }, [stream, resolvedRef]);
+
+  const initials = username?.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2) || '?';
 
   return (
-    <Card sx={{ position: 'relative', height: '100%', minHeight: 200 }}>
+    <Card
+      className={isLocal ? 'local-video-mirror' : undefined}
+      sx={{
+        position: 'relative',
+        height: '100%',
+        minHeight: 180,
+        overflow: 'hidden',
+        backgroundColor: '#1a1a1a',
+        border: isLocal ? '2px solid' : '1px solid',
+        borderColor: isLocal ? 'primary.main' : 'divider',
+        flexShrink: 0,
+        flex: '1 1 280px',
+        maxWidth: '100%',
+      }}
+    >
+      {isLocal && (
+        <style>{`.local-video-mirror video { transform: scaleX(-1); }`}</style>
+      )}
       <video
-        ref={videoRef}
+        ref={resolvedRef}
         autoPlay
         playsInline
-        muted={isLocal} // Only mute local video to prevent echo
+        muted={isLocal}
         style={{
-          width: '100%',
-          height: '100%',
+          width: '100%', height: '100%',
           objectFit: 'cover',
-          borderRadius: 8,
-          backgroundColor: '#000'
+          display: isVideoEnabled && stream ? 'block' : 'none',
         }}
       />
-      
-      {/* Video overlay with user info */}
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: 8,
-          left: 8,
-          right: 8,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          bgcolor: 'rgba(0, 0, 0, 0.7)',
-          borderRadius: 1,
-          p: 1
-        }}
-      >
-        <Typography variant="caption" color="white" sx={{ fontWeight: 'bold' }}>
-          {username}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {isScreenSharing && (
-            <Chip size="small" label="Sharing" color="warning" />
-          )}
-          {!isVideoEnabled && (
-            <VideoOffIcon sx={{ color: 'red', fontSize: 16 }} />
-          )}
-          {!isAudioEnabled && (
-            <MicOffIcon sx={{ color: 'red', fontSize: 16 }} />
-          )}
-        </Box>
-      </Box>
-      
-      {/* Show avatar when video is off */}
-      {!isVideoEnabled && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 1
-          }}
-        >
-          <Avatar sx={{ width: 64, height: 64, fontSize: 24 }}>
-            {username[0]?.toUpperCase()}
+      {(!isVideoEnabled || !stream) && (
+        <Box sx={{
+          position: 'absolute', inset: 0,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(0,0,0,0.85)',
+        }}>
+          <Avatar sx={{ width: 64, height: 64, fontSize: 24, backgroundColor: avatarColor, mb: 1 }}>
+            {initials}
           </Avatar>
-          <Typography variant="body2" color="white">
-            {username}
-          </Typography>
+          <Typography variant="caption" color="white">{username}</Typography>
         </Box>
       )}
+      {/* Overlay bar */}
+      <Box sx={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        bgcolor: 'rgba(0,0,0,0.6)', px: 1, py: 0.5,
+      }}>
+        <Typography variant="caption" color="white" fontWeight={600} noWrap sx={{ maxWidth: 120 }}>
+          {username}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          {handRaised && <span style={{ fontSize: 14 }}>✋</span>}
+          {isScreenSharing && <ScreenShareIcon sx={{ color: 'warning.main', fontSize: 14 }} />}
+          {!isVideoEnabled && <VideoOffIcon sx={{ color: 'error.main', fontSize: 14 }} />}
+          {!isAudioEnabled && <MicOffIcon sx={{ color: 'error.main', fontSize: 14 }} />}
+        </Box>
+      </Box>
     </Card>
   );
 });
+VideoPlayer.displayName = 'VideoPlayer';
 
-const Room = ({ username, roomId, onLeave }) => {
+// ─── FloatingReaction ────────────────────────────────────────────────────────
+const FloatingReaction = ({ emoji, username, onDone }) => {
+  useEffect(() => {
+    const t = setTimeout(onDone, 2500);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <Box sx={{
+      position: 'fixed',
+      bottom: 120,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      animation: 'floatUp 2.5s ease forwards',
+      pointerEvents: 'none',
+      zIndex: 9999,
+      '@keyframes floatUp': {
+        '0%': { opacity: 1, transform: 'translateX(-50%) translateY(0) scale(1)' },
+        '100%': { opacity: 0, transform: 'translateX(-50%) translateY(-120px) scale(1.6)' },
+      },
+    }}>
+      <Typography sx={{ fontSize: 40, lineHeight: 1 }}>{emoji}</Typography>
+      <Typography variant="caption" color="white" sx={{
+        bgcolor: 'rgba(0,0,0,0.6)', px: 1, borderRadius: 1, mt: 0.5,
+      }}>
+        {username}
+      </Typography>
+    </Box>
+  );
+};
+
+// ─── Main Room Component ─────────────────────────────────────────────────────
+const Room = ({ username, roomId, password, maxParticipants = 8, avatarColor = '#5865f2', startWithVideo = true, startWithAudio = true, onLeave }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
-  // State management
+
+  // ── State ──────────────────────────────────────────────────────────────────
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState(new Map());
   const [participants, setParticipants] = useState([]);
@@ -161,946 +189,1111 @@ const Room = ({ username, roomId, onLeave }) => {
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
+  const [mobileTab, setMobileTab] = useState(0); // 0=video 1=chat 2=people
   const [participantsDrawerOpen, setParticipantsDrawerOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [chatFocused, setChatFocused] = useState(false);
+  // Push-to-talk
+  const [isPushToTalk, setIsPushToTalk] = useState(false);
+  const [pttActive, setPttActive] = useState(false);
+  // Recording
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  // Raise hand
+  const [handRaised, setHandRaised] = useState(false);
+  const [raisedHands, setRaisedHands] = useState(new Map()); // userId -> username
+  // Reactions
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [floatingReactions, setFloatingReactions] = useState([]); // [{id, emoji, username}]
+  // Sound toggle
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  // Virtual background
+  const [showVBGPanel, setShowVBGPanel] = useState(false);
 
-  // Refs
+  // ── Refs ───────────────────────────────────────────────────────────────────
   const localVideoRef = useRef(null);
   const peerConnections = useRef(new Map());
   const messagesEndRef = useRef(null);
+  const localStreamRef = useRef(null); // stable ref for closures
 
-  // WebRTC configuration
+  const { loadMessages, saveMessages } = useChatPersistence(roomId);
+
+  // Virtual background — processes rawStream → processedStream via TF.js
+  const {
+    processedStream,
+    isLoading: vbgLoading,
+    error: vbgError,
+    currentBg,
+    setBackground,
+  } = useVirtualBackground(localStream);
+
+  // When processedStream changes, update localStreamRef so WebRTC uses it
+  useEffect(() => {
+    if (!processedStream) return;
+    localStreamRef.current = processedStream;
+    // Replace tracks in all active peer connections
+    peerConnections.current.forEach(pc => {
+      processedStream.getVideoTracks().forEach(newTrack => {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) sender.replaceTrack(newTrack).catch(() => {});
+      });
+    });
+    // Update local video preview
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = processedStream;
+    }
+  }, [processedStream]);
+
   const pcConfig = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
-    ]
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ],
   };
 
-  // Initialize room
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const showSnackbar = useCallback((msg, severity = 'info') => {
+    setSnackbar({ open: true, message: msg, severity });
+  }, []);
+
+  const playSound = useCallback((type) => {
+    if (!soundEnabled) return;
+    sounds[type]?.();
+  }, [soundEnabled]);
+
+  const copyRoomLink = useCallback(() => {
+    const link = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+    navigator.clipboard.writeText(link)
+      .then(() => showSnackbar('Room link copied!', 'success'));
+  }, [roomId, showSnackbar]);
+
+  // ── Chat persistence & unread ──────────────────────────────────────────────
   useEffect(() => {
-    const initRoom = async () => {
-      try {
-        // Join the room
-        socket.emit('join-room', roomId, username);
-        console.log('Emitted join-room event:', roomId, username);
-        
-        // Reset states
-        setLocalStream(null);
-        setRemoteStreams(new Map());
-        setIsVideoEnabled(false);
-        setIsAudioEnabled(false);
-        setIsInCall(false);
-        
-        // Clear video element
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = null;
-        }
-        
-      } catch (error) {
-        console.error('Error initializing room:', error);
-        showSnackbar('Failed to initialize room', 'error');
-      }
-    };
+    const saved = loadMessages();
+    if (saved.length) setMessages(saved);
+  }, [loadMessages]);
 
-    initRoom();
-    
-    // Socket event listeners
-    socket.on('room-data', (data) => {
-      console.log('Received room data:', data);
-      setParticipants(data.users || []);
-      if (data.messages) {
-        setMessages(data.messages);
-      }
-    });
+  useEffect(() => {
+    if (messages.length) saveMessages(messages);
+  }, [messages, saveMessages]);
 
-    socket.on('user-joined', (data) => {
-      console.log('User joined:', data);
-      setParticipants(prev => {
-        // Avoid duplicates
-        const exists = prev.some(p => p.id === data.id);
-        if (exists) return prev;
-        return [...prev, data];
-      });
-      showSnackbar(`${data.username} joined the room`, 'success');
-    });
-
-    socket.on('user-left', (data) => {
-      console.log('User left:', data);
-      setParticipants(prev => prev.filter(p => p.id !== data.id));
-      setRemoteStreams(prev => {
-        const newStreams = new Map(prev);
-        newStreams.delete(data.id);
-        return newStreams;
-      });
-      
-      // Clean up peer connection
-      const pc = peerConnections.current.get(data.id);
-      if (pc) {
-        pc.close();
-        peerConnections.current.delete(data.id);
-      }
-      
-      showSnackbar(`${data.username} left the room`, 'warning');
-    });
-
-    socket.on('receive-message', (data) => {
-      console.log('Received message:', data);
-      setMessages(prev => [...prev, data]);
-    });
-
-    // WebRTC signaling events
-    socket.on('call-request', handleCallRequest);
-    socket.on('call-accepted', handleCallAccepted);
-    socket.on('call-declined', handleCallDeclined);
-    socket.on('call-ended', handleCallEnded);
-    socket.on('offer', handleOffer);
-    socket.on('answer', handleAnswer);
-    socket.on('ice-candidate', handleIceCandidate);
-    socket.on('user-started-call', handleUserStartedCall);
-
-    return () => {
-      console.log('Cleaning up Room component...');
-      
-      // Remove socket listeners
-      socket.off('room-data');
-      socket.off('user-joined');
-      socket.off('user-left');
-      socket.off('receive-message');
-      socket.off('call-request');
-      socket.off('call-accepted');
-      socket.off('call-declined');
-      socket.off('call-ended');
-      socket.off('offer');
-      socket.off('answer');
-      socket.off('ice-candidate');
-      socket.off('user-started-call');
-      
-      // Clean up media streams
-      if (localStream) {
-        localStream.getTracks().forEach(track => {
-          track.stop();
-        });
-      }
-      
-      // Clean up peer connections
-      peerConnections.current.forEach(pc => {
-        if (pc) {
-          pc.close();
-        }
-      });
-      peerConnections.current.clear();
-    };
-  }, [roomId, username]);
-
-  // Auto scroll messages
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Utility functions
-  const showSnackbar = (message, severity = 'info') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const copyRoomId = () => {
-    const roomLink = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-    navigator.clipboard.writeText(roomLink).then(() => {
-      showSnackbar('Room link copied to clipboard!', 'success');
-    });
-  };
-
-  // Media functions
-  const getUserMedia = async (video = true, audio = true) => {
-    try {
-      const constraints = {
-        video: video ? {
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          facingMode: 'user'
-        } : false,
-        audio: audio ? {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } : false
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      // Enable all tracks
-      stream.getTracks().forEach(track => {
-        track.enabled = true;
-      });
-
-      return stream;
-    } catch (error) {
-      console.error('Error accessing media devices:', error);
-      let errorMessage = 'Error accessing camera/microphone';
-      
-      if (error.name === 'NotAllowedError') {
-        errorMessage = 'Please allow camera and microphone access';
-      } else if (error.name === 'NotFoundError') {
-        errorMessage = 'No camera/microphone found';
-      }
-      
-      showSnackbar(errorMessage, 'error');
-      throw error;
+  // Track unread messages when chat is not focused
+  const isChatVisible = isMobile ? mobileTab === 1 : true;
+  useEffect(() => {
+    if (!isChatVisible) {
+      // will increment on new messages below
+    } else {
+      setUnreadCount(0);
     }
-  };
+  }, [isChatVisible]);
 
-  // WebRTC helper functions
-  const createPeerConnection = (userId) => {
-    const pc = new RTCPeerConnection(pcConfig);
-    
-    // Handle incoming streams
-    pc.ontrack = (event) => {
-      console.log('Received remote stream from:', userId);
-      const [stream] = event.streams;
-      setRemoteStreams(prev => {
-        const newStreams = new Map(prev);
-        newStreams.set(userId, stream);
-        return newStreams;
-      });
+  // ── Stable refs for values used inside socket closures ────────────────────
+  const isInCallRef = useRef(false);
+  useEffect(() => { isInCallRef.current = isInCall; }, [isInCall]);
+
+  const showSnackbarRef = useRef(showSnackbar);
+  useEffect(() => { showSnackbarRef.current = showSnackbar; }, [showSnackbar]);
+
+  const playSoundRef = useRef(playSound);
+  useEffect(() => { playSoundRef.current = playSound; }, [playSound]);
+  useEffect(() => {
+    if (!isPushToTalk) return;
+
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' && !e.repeat && localStreamRef.current) {
+        const audioTrack = localStreamRef.current.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = true;
+          setIsAudioEnabled(true);
+          setPttActive(true);
+        }
+      }
+    };
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space' && localStreamRef.current) {
+        const audioTrack = localStreamRef.current.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = false;
+          setIsAudioEnabled(false);
+          setPttActive(false);
+        }
+      }
     };
 
-    // Handle ICE candidates
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isPushToTalk]);
+
+  // ── WebRTC helpers ─────────────────────────────────────────────────────────
+  const createPeerConnection = useCallback((userId) => {
+    const pc = new RTCPeerConnection(pcConfig);
+
+    pc.ontrack = (event) => {
+      const [stream] = event.streams;
+      setRemoteStreams(prev => new Map(prev).set(userId, stream));
+    };
+
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('Sending ICE candidate to:', userId);
-        socket.emit('ice-candidate', {
-          target: userId,
-          candidate: event.candidate,
-          roomId
+        socket.emit('ice-candidate', { target: userId, candidate: event.candidate, roomId });
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') pc.restartIce();
+    };
+
+    return pc;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
+
+  // ── Room init & socket listeners ───────────────────────────────────────────
+  useEffect(() => {
+    socket.emit('join-room', roomId, username, password || null, maxParticipants);
+
+    const onRoomData = (data) => {
+      const otherUsers = (data.users || []).filter(u => u.id !== socket.id);
+      setParticipants(otherUsers);
+      if (data.messages?.length) {
+        setMessages(prev => {
+          // Merge server messages with local cache, deduplicate by id
+          const ids = new Set(prev.map(m => m.id));
+          const merged = [...prev];
+          data.messages.forEach(m => { if (!ids.has(m.id)) merged.push(m); });
+          merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          return merged;
         });
       }
     };
 
-    // Handle connection state changes
-    pc.onconnectionstatechange = () => {
-      console.log(`Connection state with ${userId}:`, pc.connectionState);
-      if (pc.connectionState === 'failed') {
-        console.log('Connection failed, attempting to restart ICE');
-        pc.restartIce();
+    const onUserJoined = (data) => {
+      setParticipants(prev => {
+        if (prev.some(p => p.id === data.id)) return prev;
+        return [...prev, data];
+      });
+      showSnackbarRef.current(`${data.username} joined`, 'success');
+      playSoundRef.current('userJoined');
+    };
+
+    const onUserLeft = (data) => {
+      setParticipants(prev => prev.filter(p => p.id !== data.id));
+      setRemoteStreams(prev => { const m = new Map(prev); m.delete(data.id); return m; });
+      setRaisedHands(prev => { const m = new Map(prev); m.delete(data.id); return m; });
+      const pc = peerConnections.current.get(data.id);
+      if (pc) { pc.close(); peerConnections.current.delete(data.id); }
+      showSnackbarRef.current(`${data.username} left`, 'warning');
+      playSoundRef.current('userLeft');
+    };
+
+    const onReceiveMessage = (data) => {
+      setMessages(prev => [...prev, data]);
+      if (!isChatVisible) {
+        setUnreadCount(c => c + 1);
+        playSoundRef.current('message');
       }
     };
 
-    return pc;
+    const onJoinError = (msg) => {
+      showSnackbarRef.current(msg, 'error');
+      onLeave();
+    };
+
+    const onReactionReceived = ({ username: rUser, emoji }) => {
+      const id = Date.now() + Math.random();
+      setFloatingReactions(prev => [...prev, { id, emoji, username: rUser }]);
+      playSoundRef.current('reaction');
+    };
+
+    const onUserStartedCall = async (data) => {
+      const stream = localStreamRef.current;
+      if (!stream || !isInCallRef.current) return;
+      const pc = createPeerConnection(data.userId);
+      peerConnections.current.set(data.userId, pc);
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit('offer', { target: data.userId, offer, roomId });
+    };
+
+    const onOffer = async ({ sender, offer }) => {
+      const stream = localStreamRef.current;
+      if (!stream) return;
+      let pc = peerConnections.current.get(sender);
+      if (!pc) { pc = createPeerConnection(sender); peerConnections.current.set(sender, pc); }
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('answer', { target: sender, answer, roomId });
+    };
+
+    const onAnswer = async ({ sender, answer }) => {
+      const pc = peerConnections.current.get(sender);
+      if (pc && pc.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      }
+    };
+
+    const onIceCandidate = async ({ sender, candidate }) => {
+      const pc = peerConnections.current.get(sender);
+      if (pc && pc.remoteDescription) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    };
+
+    const onCallEnded = (data) => {
+      if (data.userId) {
+        setRemoteStreams(prev => { const m = new Map(prev); m.delete(data.userId); return m; });
+        const pc = peerConnections.current.get(data.userId);
+        if (pc) { pc.close(); peerConnections.current.delete(data.userId); }
+      }
+      showSnackbar(`Call ended by ${data.username || 'remote user'}`, 'info');
+    };
+
+    socket.on('room-data', onRoomData);
+    socket.on('user-joined', onUserJoined);
+    socket.on('user-left', onUserLeft);
+    socket.on('receive-message', onReceiveMessage);
+    socket.on('join-error', onJoinError);
+    socket.on('reaction-received', onReactionReceived);
+    socket.on('user-started-call', onUserStartedCall);
+    socket.on('offer', onOffer);
+    socket.on('answer', onAnswer);
+    socket.on('ice-candidate', onIceCandidate);
+    socket.on('call-ended', onCallEnded);
+
+    return () => {
+      socket.off('room-data', onRoomData);
+      socket.off('user-joined', onUserJoined);
+      socket.off('user-left', onUserLeft);
+      socket.off('receive-message', onReceiveMessage);
+      socket.off('join-error', onJoinError);
+      socket.off('reaction-received', onReactionReceived);
+      socket.off('user-started-call', onUserStartedCall);
+      socket.off('offer', onOffer);
+      socket.off('answer', onAnswer);
+      socket.off('ice-candidate', onIceCandidate);
+      socket.off('call-ended', onCallEnded);
+
+      localStreamRef.current?.getTracks().forEach(t => t.stop());
+      peerConnections.current.forEach(pc => pc.close());
+      peerConnections.current.clear();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, username]);
+
+  // ── Raise hand — separate effect so it always has fresh state ─────────────
+  useEffect(() => {
+    const onHandRaised = ({ userId, username: rUser, raised }) => {
+      setRaisedHands(prev => {
+        const m = new Map(prev);
+        if (raised) m.set(userId, rUser);
+        else m.delete(userId);
+        return m;
+      });
+      if (raised) showSnackbarRef.current(`${rUser} raised their hand ✋`, 'info');
+    };
+    socket.on('hand-raised', onHandRaised);
+    return () => socket.off('hand-raised', onHandRaised);
+  }); // no dep array — re-registers every render so closure is always fresh
+
+  // ── Media ──────────────────────────────────────────────────────────────────
+  const getUserMedia = async (video = true, audio = true) => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: video ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false,
+      audio: audio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
+    });
+    stream.getTracks().forEach(t => { t.enabled = true; });
+    return stream;
   };
 
-  // Call functions
-  const startVideoCall = async () => {
+  const startCall = async (withVideo) => {
     try {
-      console.log('Starting video call...');
-      
-      // Clean up existing stream
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-
-      // Get new media stream
-      const mediaStream = await getUserMedia(true, true);
-      
-      // Update state
-      setLocalStream(mediaStream);
-      setIsVideoEnabled(true);
+      localStreamRef.current?.getTracks().forEach(t => t.stop());
+      const stream = await getUserMedia(withVideo, true);
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      setIsVideoEnabled(withVideo);
       setIsAudioEnabled(true);
       setIsInCall(true);
 
-      // Set up local video
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = mediaStream;
-        try {
-          await localVideoRef.current.play();
-        } catch (playError) {
-          console.warn('Auto-play prevented, user interaction required');
-        }
+        localVideoRef.current.srcObject = stream;
+        await localVideoRef.current.play().catch(() => {});
       }
-
-      // Notify other participants
-      socket.emit('start-call', { roomId, type: 'video', username });
-      showSnackbar('Video call started', 'success');
-
-    } catch (error) {
-      console.error('Error starting video call:', error);
-      
-      // Clean up on error
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      
-      setLocalStream(null);
-      setIsVideoEnabled(false);
-      setIsAudioEnabled(false);
+      socket.emit('start-call', { roomId, type: withVideo ? 'video' : 'voice', username });
+      showSnackbar(withVideo ? 'Video call started' : 'Voice call started', 'success');
+    } catch (err) {
+      showSnackbar(err.name === 'NotAllowedError' ? 'Camera/mic permission denied' : 'Failed to start call', 'error');
       setIsInCall(false);
-      
-      showSnackbar(
-        error.name === 'NotAllowedError' 
-          ? 'Please allow camera and microphone access' 
-          : 'Failed to start video call',
-        'error'
-      );
-    }
-  };
-
-  const startVoiceCall = async () => {
-    try {
-      console.log('Starting voice call...');
-      
-      // Clean up existing stream
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-
-      // Get audio-only stream
-      const mediaStream = await getUserMedia(false, true);
-      
-      // Update state
-      setLocalStream(mediaStream);
-      setIsVideoEnabled(false);
-      setIsAudioEnabled(true);
-      setIsInCall(true);
-
-      // Notify other participants
-      socket.emit('start-call', { roomId, type: 'voice', username });
-      showSnackbar('Voice call started', 'success');
-
-    } catch (error) {
-      console.error('Error starting voice call:', error);
-      
-      // Clean up on error
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      
-      setLocalStream(null);
-      setIsAudioEnabled(false);
-      setIsInCall(false);
-      
-      showSnackbar('Failed to start voice call', 'error');
     }
   };
 
   const toggleVideo = () => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoEnabled(videoTrack.enabled);
-        showSnackbar(videoTrack.enabled ? 'Video enabled' : 'Video disabled', 'info');
-      }
-    }
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (track) { track.enabled = !track.enabled; setIsVideoEnabled(track.enabled); }
   };
 
   const toggleAudio = () => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsAudioEnabled(audioTrack.enabled);
-        showSnackbar(audioTrack.enabled ? 'Microphone enabled' : 'Microphone disabled', 'info');
-      }
-    }
+    if (isPushToTalk) return; // PTT controls audio
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) { track.enabled = !track.enabled; setIsAudioEnabled(track.enabled); }
   };
 
   const toggleScreenShare = async () => {
     try {
       if (!isScreenSharing) {
-        // Start screen sharing
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true
-        });
-        
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         const videoTrack = screenStream.getVideoTracks()[0];
-        
-        // Replace video track in existing peer connections
         peerConnections.current.forEach(pc => {
-          const sender = pc.getSenders().find(s => 
-            s.track && s.track.kind === 'video'
-          );
-          if (sender) {
-            sender.replaceTrack(videoTrack);
-          }
+          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+          if (sender) sender.replaceTrack(videoTrack);
         });
-
-        // Replace local video track
-        if (localStream) {
-          const oldVideoTrack = localStream.getVideoTracks()[0];
-          if (oldVideoTrack) {
-            localStream.removeTrack(oldVideoTrack);
-            oldVideoTrack.stop();
-          }
-          localStream.addTrack(videoTrack);
+        if (localStreamRef.current) {
+          const old = localStreamRef.current.getVideoTracks()[0];
+          if (old) { localStreamRef.current.removeTrack(old); old.stop(); }
+          localStreamRef.current.addTrack(videoTrack);
+          setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
         }
-
         setIsScreenSharing(true);
-        showSnackbar('Screen sharing started', 'success');
-        
-        // Handle screen share end
         videoTrack.onended = () => {
           setIsScreenSharing(false);
-          showSnackbar('Screen sharing stopped', 'info');
-          // Optionally restart camera
           restartCamera();
         };
-        
       } else {
-        // Stop screen sharing manually
-        if (localStream) {
-          const videoTrack = localStream.getVideoTracks()[0];
-          if (videoTrack) {
-            videoTrack.stop();
-            localStream.removeTrack(videoTrack);
-          }
-        }
+        const track = localStreamRef.current?.getVideoTracks()[0];
+        if (track) { track.stop(); localStreamRef.current.removeTrack(track); }
         setIsScreenSharing(false);
         restartCamera();
       }
-    } catch (error) {
-      console.error('Screen sharing error:', error);
+    } catch (err) {
       showSnackbar('Screen sharing failed', 'error');
     }
   };
 
   const restartCamera = async () => {
     try {
-      const videoStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      
-      const videoTrack = videoStream.getVideoTracks()[0];
-      
-      // Replace track in peer connections
+      const vs = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const videoTrack = vs.getVideoTracks()[0];
       peerConnections.current.forEach(pc => {
-        const sender = pc.getSenders().find(s => 
-          s.track && s.track.kind === 'video'
-        );
-        if (sender) {
-          sender.replaceTrack(videoTrack);
-        }
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) sender.replaceTrack(videoTrack);
       });
-
-      // Add to local stream
-      if (localStream) {
-        localStream.addTrack(videoTrack);
-      }
-      
+      localStreamRef.current?.addTrack(videoTrack);
+      setLocalStream(new MediaStream(localStreamRef.current?.getTracks() || []));
       setIsVideoEnabled(true);
-    } catch (error) {
-      console.error('Error restarting camera:', error);
-    }
+    } catch (e) { /* camera unavailable */ }
   };
 
   const endCall = () => {
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    localStreamRef.current = null;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    peerConnections.current.forEach(pc => pc.close());
+    peerConnections.current.clear();
+    setLocalStream(null);
+    setRemoteStreams(new Map());
+    setIsVideoEnabled(false);
+    setIsAudioEnabled(false);
+    setIsScreenSharing(false);
+    setIsInCall(false);
+    socket.emit('end-call', { roomId, username });
+    showSnackbar('Call ended', 'info');
+  };
+
+  // ── Recording ──────────────────────────────────────────────────────────────
+  const startRecording = () => {
+    const stream = localStreamRef.current;
+    if (!stream) { showSnackbar('Start a call before recording', 'warning'); return; }
     try {
-      console.log('Ending call...');
-      
-      // Stop all local tracks
-      if (localStream) {
-        localStream.getTracks().forEach(track => {
-          track.stop();
-        });
-      }
-
-      // Clear video element
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = null;
-      }
-
-      // Close all peer connections
-      peerConnections.current.forEach(pc => {
-        if (pc) {
-          pc.close();
-        }
-      });
-      peerConnections.current.clear();
-
-      // Reset all states
-      setLocalStream(null);
-      setRemoteStreams(new Map());
-      setIsVideoEnabled(false);
-      setIsAudioEnabled(false);
-      setIsScreenSharing(false);
-      setIsInCall(false);
-
-      // Notify server
-      socket.emit('end-call', { roomId, username });
-      showSnackbar('Call ended', 'info');
-      
-    } catch (error) {
-      console.error('Error ending call:', error);
-      showSnackbar('Error ending call', 'error');
-    }
-  };
-
-  // WebRTC event handlers
-  const handleUserStartedCall = async (data) => {
-    console.log('User started call:', data);
-    
-    if (!localStream || !isInCall) {
-      console.log('Not in call, ignoring call start event');
-      return;
-    }
-
-    // Create peer connection for the user who started the call
-    const pc = createPeerConnection(data.userId);
-    peerConnections.current.set(data.userId, pc);
-
-    // Add local stream to peer connection
-    localStream.getTracks().forEach(track => {
-      pc.addTrack(track, localStream);
-    });
-
-    // Create and send offer
-    try {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      
-      socket.emit('offer', {
-        target: data.userId,
-        offer: offer,
-        roomId
-      });
-    } catch (error) {
-      console.error('Error creating offer:', error);
-    }
-  };
-
-  const handleCallRequest = (data) => {
-    showSnackbar(`${data.from} is calling...`, 'info');
-  };
-
-  const handleCallAccepted = (data) => {
-    showSnackbar('Call accepted', 'success');
-  };
-
-  const handleCallDeclined = (data) => {
-    showSnackbar('Call declined', 'warning');
-  };
-
-  const handleCallEnded = (data) => {
-    console.log('Call ended by remote user:', data);
-    
-    // Remove the specific user's stream and connection
-    if (data.userId) {
-      setRemoteStreams(prev => {
-        const newStreams = new Map(prev);
-        newStreams.delete(data.userId);
-        return newStreams;
-      });
-      
-      const pc = peerConnections.current.get(data.userId);
-      if (pc) {
-        pc.close();
-        peerConnections.current.delete(data.userId);
-      }
-    }
-    
-    showSnackbar(`Call ended by ${data.username || 'remote user'}`, 'info');
-  };
-
-  const handleOffer = async ({ sender, offer }) => {
-    try {
-      console.log('Received offer from:', sender);
-      
-      if (!localStream) {
-        console.log('No local stream available for peer connection');
-        return;
-      }
-
-      let pc = peerConnections.current.get(sender);
-      if (!pc) {
-        pc = createPeerConnection(sender);
-        peerConnections.current.set(sender, pc);
-      }
-      
-      // Add local stream
-      localStream.getTracks().forEach(track => {
-        pc.addTrack(track, localStream);
-      });
-
-      // Set remote description and create answer
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      // Send answer
-      socket.emit('answer', {
-        target: sender,
-        answer: answer,
-        roomId
-      });
-      
-    } catch (error) {
-      console.error('Error handling offer:', error);
-      showSnackbar('Error establishing connection', 'error');
-    }
-  };
-
-  const handleAnswer = async ({ sender, answer }) => {
-    try {
-      console.log('Received answer from:', sender);
-      
-      const pc = peerConnections.current.get(sender);
-      if (pc && pc.signalingState === 'have-local-offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        console.log('Answer processed successfully');
-      }
-    } catch (error) {
-      console.error('Error handling answer:', error);
-    }
-  };
-
-  const handleIceCandidate = async ({ sender, candidate }) => {
-    try {
-      const pc = peerConnections.current.get(sender);
-      if (pc && pc.remoteDescription) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('ICE candidate added for:', sender);
-      }
-    } catch (error) {
-      console.error('Error handling ICE candidate:', error);
-    }
-  };
-
-  // Message functions
-  const sendMessage = () => {
-    if (message.trim()) {
-      const messageData = {
-        roomId,
-        username,
-        message: message.trim(),
-        timestamp: new Date().toISOString()
+      recordedChunksRef.current = [];
+      const mr = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
+      mr.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ConnectSphere_${roomId}_${Date.now()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showSnackbar('Recording saved', 'success');
       };
-      
-      socket.emit('send-message', messageData);
-      setMessage('');
+      mr.start(1000);
+      mediaRecorderRef.current = mr;
+      setIsRecording(true);
+      showSnackbar('Recording started', 'info');
+    } catch (err) {
+      showSnackbar('Recording not supported in this browser', 'error');
     }
   };
 
-  const handleMessageKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setIsRecording(false);
   };
 
-  return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <AppBar position="static" elevation={1}>
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            ConnectSphere - Room: {roomId}
-          </Typography>
-          <IconButton color="inherit" onClick={copyRoomId}>
-            <CopyIcon />
-          </IconButton>
-          <IconButton 
-            color="inherit" 
-            onClick={() => setParticipantsDrawerOpen(true)}
+  // ── Raise hand ─────────────────────────────────────────────────────────────
+  const toggleRaiseHand = () => {
+    const next = !handRaised;
+    setHandRaised(next);
+    socket.emit('raise-hand', { roomId, username, raised: next });
+  };
+
+  // ── Reactions ──────────────────────────────────────────────────────────────
+  const sendReaction = (emoji) => {
+    socket.emit('send-reaction', { roomId, username, emoji });
+    setShowReactionPicker(false);
+  };
+
+  const removeFloatingReaction = useCallback((id) => {
+    setFloatingReactions(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  // ── Push-to-talk toggle ────────────────────────────────────────────────────
+  const togglePushToTalk = () => {
+    const next = !isPushToTalk;
+    setIsPushToTalk(next);
+    if (next && localStreamRef.current) {
+      // Mute mic initially when PTT turns on
+      const t = localStreamRef.current.getAudioTracks()[0];
+      if (t) { t.enabled = false; setIsAudioEnabled(false); }
+    }
+    showSnackbar(next ? 'Push-to-talk ON (hold Space to speak)' : 'Push-to-talk OFF', 'info');
+  };
+
+  // ── Chat ───────────────────────────────────────────────────────────────────
+  const sendMessage = () => {
+    if (!message.trim()) return;
+    socket.emit('send-message', {
+      roomId, username,
+      message: message.trim(),
+      timestamp: new Date().toISOString(),
+    });
+    setMessage('');
+  };
+
+  const getAvatarColor = (name) => {
+    const colors = ['#f44336','#e91e63','#9c27b0','#673ab7','#3f51b5','#2196f3',
+      '#03a9f4','#00bcd4','#009688','#4caf50','#8bc34a','#ffc107','#ff9800','#ff5722'];
+    return colors[(name?.charCodeAt(0) || 0) % colors.length];
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  // Defined as JSX variables (NOT inner components) to prevent remount on every
+  // state change — inner const Foo = () => components cause React to treat them
+  // as new types each render, which unmounts inputs and steals focus.
+  const controlBar = (
+    <Box sx={{
+      display: 'flex', gap: 1, flexWrap: 'wrap',
+      justifyContent: 'center', alignItems: 'center', p: 1.5,
+      backgroundColor: 'rgba(32,34,37,0.95)',
+      borderTop: '1px solid rgba(255,255,255,0.08)',
+    }}>
+      {/* Start call buttons (only when not in call) */}
+      {!isInCall && (
+        <>
+          <Tooltip title="Start video call">
+            <Fab size="small" color="primary" onClick={() => startCall(true)}>
+              <VideoIcon />
+            </Fab>
+          </Tooltip>
+          <Tooltip title="Start voice call">
+            <Fab size="small" color="secondary" onClick={() => startCall(false)}>
+              <MicIcon />
+            </Fab>
+          </Tooltip>
+        </>
+      )}
+
+      {isInCall && (
+        <>
+          {/* Mic */}
+          <Tooltip title={isPushToTalk ? `PTT: ${pttActive ? 'Speaking' : 'Hold Space'}` : (isAudioEnabled ? 'Mute' : 'Unmute')}>
+            <Fab
+              size="small"
+              onClick={toggleAudio}
+              sx={{
+                backgroundColor: isPushToTalk
+                  ? (pttActive ? 'success.main' : 'warning.main')
+                  : (isAudioEnabled ? 'success.main' : 'error.main'),
+                color: 'white',
+                '&:hover': { backgroundColor: 'inherit' },
+              }}
+            >
+              {isAudioEnabled ? <MicIcon /> : <MicOffIcon />}
+            </Fab>
+          </Tooltip>
+
+          {/* Video */}
+          <Tooltip title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}>
+            <Fab size="small"
+              sx={{
+                backgroundColor: isVideoEnabled ? 'success.main' : 'error.main',
+                color: 'white', '&:hover': { backgroundColor: 'inherit' },
+              }}
+              onClick={toggleVideo}
+            >
+              {isVideoEnabled ? <VideoIcon /> : <VideoOffIcon />}
+            </Fab>
+          </Tooltip>
+
+          {/* Screen share */}
+          <Tooltip title={isScreenSharing ? 'Stop sharing' : 'Share screen'}>
+            <Fab size="small"
+              sx={{
+                backgroundColor: isScreenSharing ? 'primary.main' : 'background.paper',
+                color: isScreenSharing ? 'white' : 'text.primary',
+                border: isScreenSharing ? 'none' : '1px solid',
+                borderColor: 'primary.main',
+                '&:hover': { backgroundColor: 'primary.dark', color: 'white' },
+              }}
+              onClick={toggleScreenShare}
+            >
+              {isScreenSharing ? <StopScreenShareIcon /> : <ScreenShareIcon />}
+            </Fab>
+          </Tooltip>
+
+          {/* Record */}
+          <Tooltip title={isRecording ? 'Stop recording' : 'Start recording'}>
+            <Fab size="small"
+              sx={{
+                backgroundColor: isRecording ? 'error.main' : 'background.paper',
+                color: isRecording ? 'white' : 'error.main',
+                border: isRecording ? 'none' : '1px solid',
+                borderColor: 'error.main',
+                animation: isRecording ? 'pulse 1.2s infinite' : 'none',
+                '@keyframes pulse': {
+                  '0%, 100%': { opacity: 1 },
+                  '50%': { opacity: 0.5 },
+                },
+              }}
+              onClick={isRecording ? stopRecording : startRecording}
+            >
+              {isRecording ? <StopIcon /> : <RecordIcon />}
+            </Fab>
+          </Tooltip>
+
+          {/* PTT toggle */}
+          <Tooltip title={isPushToTalk ? 'Disable push-to-talk' : 'Enable push-to-talk (Space)'}>
+            <Chip
+              label="PTT"
+              size="small"
+              color={isPushToTalk ? 'warning' : 'default'}
+              onClick={togglePushToTalk}
+              sx={{ cursor: 'pointer', fontWeight: 700 }}
+            />
+          </Tooltip>
+
+          {/* End call */}
+          <Tooltip title="End call">
+            <Fab size="small" sx={{ backgroundColor: 'error.main', color: 'white' }} onClick={endCall}>
+              <CallEndIcon />
+            </Fab>
+          </Tooltip>
+        </>
+      )}
+
+      {/* Raise hand */}
+      <Tooltip title={handRaised ? 'Lower hand' : 'Raise hand'}>
+        <Fab size="small"
+          sx={{
+            backgroundColor: handRaised ? 'warning.main' : 'background.paper',
+            color: handRaised ? 'white' : 'text.secondary',
+            border: handRaised ? 'none' : '1px solid',
+            borderColor: 'divider',
+          }}
+          onClick={toggleRaiseHand}
+        >
+          <RaiseHandIcon />
+        </Fab>
+      </Tooltip>
+
+      {/* Reactions */}
+      <Box sx={{ position: 'relative' }}>
+        <Tooltip title="Send reaction">
+          <Fab size="small"
+            sx={{
+              backgroundColor: 'background.paper',
+              color: 'text.secondary',
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+            onClick={() => setShowReactionPicker(p => !p)}
           >
-            <Badge badgeContent={participants.length} color="secondary">
-              <PeopleIcon />
+            <EmojiIcon />
+          </Fab>
+        </Tooltip>
+        {showReactionPicker && (
+          <Paper elevation={8} sx={{
+            position: 'absolute', bottom: 52, left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex', gap: 0.5, p: 1, borderRadius: 3,
+            zIndex: 100,
+          }}>
+            {REACTIONS.map(emoji => (
+              <Box
+                key={emoji}
+                onClick={() => sendReaction(emoji)}
+                sx={{
+                  fontSize: 24, cursor: 'pointer',
+                  transition: 'transform 0.1s',
+                  '&:hover': { transform: 'scale(1.3)' },
+                }}
+              >
+                {emoji}
+              </Box>
+            ))}
+          </Paper>
+        )}
+      </Box>
+
+      {/* Copy link */}
+      <Tooltip title="Copy room link">
+        <Fab size="small"
+          sx={{ backgroundColor: 'background.paper', color: 'primary.main', border: '1px solid', borderColor: 'primary.main' }}
+          onClick={copyRoomLink}
+        >
+          <CopyIcon />
+        </Fab>
+      </Tooltip>
+
+      {/* Sound toggle */}
+      <Tooltip title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}>
+        <Chip
+          label={soundEnabled ? '🔔' : '🔕'}
+          size="small"
+          onClick={() => setSoundEnabled(p => !p)}
+          sx={{ cursor: 'pointer', fontSize: 16 }}
+        />
+      </Tooltip>
+
+      {/* Virtual Background */}
+      <Tooltip title={showVBGPanel ? 'Hide background effects' : 'Background effects'}>
+        <Fab
+          size="small"
+          onClick={() => setShowVBGPanel(p => !p)}
+          sx={{
+            backgroundColor: showVBGPanel ? 'primary.main' : (currentBg.type !== 'none' ? 'rgba(88,101,242,0.3)' : 'background.paper'),
+            color: showVBGPanel ? 'white' : (currentBg.type !== 'none' ? 'primary.light' : 'text.secondary'),
+            border: showVBGPanel ? 'none' : '1px solid',
+            borderColor: currentBg.type !== 'none' ? 'primary.main' : 'divider',
+            position: 'relative',
+          }}
+        >
+          <BlurOnIcon />
+          {vbgLoading && (
+            <Box sx={{
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              border: '2px solid', borderColor: 'primary.light',
+              animation: 'spin 1s linear infinite',
+              '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } },
+            }} />
+          )}
+        </Fab>
+      </Tooltip>
+
+      {/* Leave */}
+      <Tooltip title="Leave room">
+        <Fab size="small" sx={{ backgroundColor: 'error.dark', color: 'white', ml: 1 }} onClick={onLeave}>
+          <ExitIcon />
+        </Fab>
+      </Tooltip>
+    </Box>
+  );
+
+  // Video section
+  const videoSection = (
+    <Box sx={{
+      display: 'flex', gap: 1, p: 1,
+      overflowX: 'auto',
+      flexWrap: 'wrap',
+      alignContent: 'flex-start',
+      flex: 1,
+      minHeight: isMobile ? 200 : 0,
+      backgroundColor: '#111',
+    }}>
+      {isInCall && (
+        <VideoPlayer
+          ref={localVideoRef}
+          stream={processedStream || localStream}
+          username={`${username} (You)`}
+          isLocal
+          isAudioEnabled={isAudioEnabled}
+          isVideoEnabled={isVideoEnabled}
+          isScreenSharing={isScreenSharing}
+          avatarColor={avatarColor}
+          handRaised={handRaised}
+        />
+      )}
+      {Array.from(remoteStreams).map(([userId, stream]) => {
+        const p = participants.find(x => x.id === userId);
+        return (
+          <VideoPlayer
+            key={userId}
+            stream={stream}
+            username={p?.username || 'Unknown'}
+            isLocal={false}
+            isAudioEnabled
+            isVideoEnabled
+            avatarColor={getAvatarColor(p?.username)}
+            handRaised={raisedHands.has(userId)}
+          />
+        );
+      })}
+      {!isInCall && (
+        <Box sx={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 2,
+          minHeight: 200,
+        }}>
+          <Typography color="text.secondary">No active call</Typography>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button variant="contained" startIcon={<VideoIcon />} onClick={() => startCall(true)}>
+              Start Video
+            </Button>
+            <Button variant="outlined" startIcon={<MicIcon />} onClick={() => startCall(false)}>
+              Start Voice
+            </Button>
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+
+  // Chat section
+  const chatSection = (
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <Box sx={{
+        p: 1.5, borderBottom: '1px solid', borderColor: 'divider',
+        display: 'flex', alignItems: 'center', gap: 1,
+      }}>
+        <ChatIcon color="primary" fontSize="small" />
+        <Typography variant="subtitle1" fontWeight={600}>Chat</Typography>
+        {unreadCount > 0 && (
+          <Chip label={unreadCount} size="small" color="error" sx={{ height: 20, fontSize: 11 }} />
+        )}
+      </Box>
+
+      <Box sx={{
+        flex: 1, overflow: 'auto', p: 1,
+        '&::-webkit-scrollbar': { width: 4 },
+        '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.15)', borderRadius: 2 },
+      }}>
+        {messages.length === 0 ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+            <Typography variant="body2" color="text.secondary">No messages yet</Typography>
+          </Box>
+        ) : (
+          messages.map((msg, i) => {
+            const isOwn = msg.username === username;
+            return (
+              <Box key={msg.id || i} sx={{
+                mb: 1.5, display: 'flex',
+                flexDirection: isOwn ? 'row-reverse' : 'row',
+                alignItems: 'flex-end', gap: 1,
+              }}>
+                <Avatar sx={{
+                  width: 28, height: 28, fontSize: 11, fontWeight: 700,
+                  backgroundColor: isOwn ? avatarColor : getAvatarColor(msg.username),
+                  flexShrink: 0,
+                }}>
+                  {msg.username?.[0]?.toUpperCase()}
+                </Avatar>
+                <Box sx={{ maxWidth: '75%' }}>
+                  {(i === 0 || messages[i - 1].username !== msg.username) && (
+                    <Typography variant="caption" color="text.secondary" sx={{
+                      display: 'block', mb: 0.3,
+                      textAlign: isOwn ? 'right' : 'left',
+                      fontWeight: 600,
+                      color: isOwn ? avatarColor : getAvatarColor(msg.username),
+                    }}>
+                      {msg.username}
+                    </Typography>
+                  )}
+                  <Paper elevation={1} sx={{
+                    px: 1.5, py: 1,
+                    backgroundColor: isOwn ? 'primary.main' : 'background.default',
+                    color: isOwn ? 'white' : 'text.primary',
+                    borderRadius: 2,
+                    borderTopRightRadius: isOwn ? 4 : 12,
+                    borderTopLeftRadius: isOwn ? 12 : 4,
+                    wordBreak: 'break-word',
+                  }}>
+                    <Typography variant="body2">{msg.message}</Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.65, display: 'block', textAlign: 'right', mt: 0.3 }}>
+                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Typography>
+                  </Paper>
+                </Box>
+              </Box>
+            );
+          })
+        )}
+        <div ref={messagesEndRef} />
+      </Box>
+
+      <Box sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 1 }}>
+        <TextField
+          fullWidth size="small"
+          placeholder="Type a message…"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+          onFocus={() => { setChatFocused(true); setUnreadCount(0); }}
+          onBlur={() => setChatFocused(false)}
+        />
+        <IconButton color="primary" onClick={sendMessage} disabled={!message.trim()}>
+          <SendIcon />
+        </IconButton>
+      </Box>
+    </Box>
+  );
+
+  // Participants panel
+  const participantsPanel = (
+    <Box sx={{ p: 2 }}>
+      <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+        Participants ({participants.length + 1})
+      </Typography>
+      <List dense>
+        {/* Self */}
+        <ListItem sx={{ px: 0 }}>
+          <ListItemAvatar>
+            <Badge
+              overlap="circular"
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              badgeContent={handRaised ? '✋' : null}
+            >
+              <Avatar sx={{ width: 36, height: 36, backgroundColor: avatarColor, fontSize: 14 }}>
+                {username[0]?.toUpperCase()}
+              </Avatar>
             </Badge>
-          </IconButton>
-          <IconButton color="inherit" onClick={onLeave}>
-            <ExitIcon />
-          </IconButton>
+          </ListItemAvatar>
+          <ListItemText
+            primary={`${username} (You)`}
+            secondary={
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.3 }}>
+                {isInCall && <Chip size="small" label="In call" color="primary" sx={{ height: 18, fontSize: 10 }} />}
+                {isVideoEnabled && <Chip size="small" label="Video" color="success" sx={{ height: 18, fontSize: 10 }} />}
+              </Box>
+            }
+          />
+        </ListItem>
+        <Divider />
+        {participants.map((p) => (
+          <ListItem key={p.id} sx={{ px: 0 }}>
+            <ListItemAvatar>
+              <Badge
+                overlap="circular"
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                badgeContent={raisedHands.has(p.id) ? '✋' : null}
+              >
+                <Avatar sx={{ width: 36, height: 36, backgroundColor: getAvatarColor(p.username), fontSize: 14 }}>
+                  {p.username[0]?.toUpperCase()}
+                </Avatar>
+              </Badge>
+            </ListItemAvatar>
+            <ListItemText
+              primary={p.username}
+              secondary={<Chip size="small" label="Online" color="success" sx={{ height: 18, fontSize: 10 }} />}
+            />
+          </ListItem>
+        ))}
+      </List>
+    </Box>
+  );
+
+  // ── Desktop layout ─────────────────────────────────────────────────────────
+  if (!isMobile) {
+    return (
+      <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'background.default' }}>
+        {/* Header */}
+        <AppBar position="static" elevation={0} sx={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <Toolbar variant="dense">
+            <VideoCallIcon sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1 }}>
+              ConnectSphere
+              <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                #{roomId}
+              </Typography>
+            </Typography>
+            {isRecording && (
+              <Chip label="● REC" size="small" color="error" sx={{ mr: 1, animation: 'pulse 1.2s infinite' }} />
+            )}
+            {pttActive && <Chip label="🎤 Speaking" size="small" color="success" sx={{ mr: 1 }} />}
+            <IconButton size="small" color="inherit" onClick={copyRoomLink}><CopyIcon /></IconButton>
+            <IconButton size="small" color="inherit" onClick={() => setParticipantsDrawerOpen(true)}>
+              <Badge badgeContent={participants.length + 1} color="secondary"><PeopleIcon /></Badge>
+            </IconButton>
+            <IconButton size="small" color="inherit" onClick={onLeave}><ExitIcon /></IconButton>
+          </Toolbar>
+        </AppBar>
+
+        {/* Floating reactions */}
+        {floatingReactions.map(r => (
+          <FloatingReaction key={r.id} emoji={r.emoji} username={r.username} onDone={() => removeFloatingReaction(r.id)} />
+        ))}
+
+        {/* Main area */}
+        <Box sx={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+          {/* Video + controls column */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+            <Box sx={{ flex: 1, display: 'flex', overflow: 'auto', backgroundColor: '#111' }}>
+              {videoSection}
+            </Box>
+            {controlBar}
+          </Box>
+
+          {/* Chat sidebar */}
+          <Paper sx={{
+            width: 320,
+            display: 'flex', flexDirection: 'column',
+            borderLeft: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 0,
+          }}>
+            {chatSection}
+          </Paper>
+
+          {/* Virtual Background panel — slides in from right */}
+          {showVBGPanel && (
+            <VirtualBackgroundPanel
+              currentBg={currentBg}
+              onSetBackground={setBackground}
+              isLoading={vbgLoading}
+              error={vbgError}
+              onClose={() => setShowVBGPanel(false)}
+            />
+          )}
+        </Box>
+
+        {/* Participants drawer */}
+        <Drawer anchor="right" open={participantsDrawerOpen} onClose={() => setParticipantsDrawerOpen(false)}>
+          <Box sx={{ width: 280 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
+              <Typography variant="h6">Participants</Typography>
+              <IconButton onClick={() => setParticipantsDrawerOpen(false)}><CloseIcon /></IconButton>
+            </Box>
+            <Divider />
+            {participantsPanel}
+          </Box>
+        </Drawer>
+
+        <Snackbar
+          open={snackbar.open} autoHideDuration={4000}
+          onClose={() => setSnackbar(s => ({ ...s, open: false }))}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSnackbar(s => ({ ...s, open: false }))} severity={snackbar.severity}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    );
+  }
+
+  // ── Mobile layout ──────────────────────────────────────────────────────────
+  return (
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'background.default' }}>
+      {/* Mobile header */}
+      <AppBar position="static" elevation={0} sx={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <Toolbar variant="dense">
+          <Typography variant="subtitle2" fontWeight={700} sx={{ flexGrow: 1 }}>#{roomId}</Typography>
+          {isRecording && <Chip label="● REC" size="small" color="error" sx={{ mr: 1 }} />}
+          {pttActive && <Chip label="🎤" size="small" color="success" sx={{ mr: 1 }} />}
+          <IconButton size="small" color="inherit" onClick={copyRoomLink}><CopyIcon fontSize="small" /></IconButton>
+          <IconButton size="small" color="inherit" onClick={onLeave}><ExitIcon fontSize="small" /></IconButton>
         </Toolbar>
       </AppBar>
 
-      {/* Main Content */}
-      <Box sx={{ flexGrow: 1, height: 'calc(100vh - 64px)', display: 'flex' }}>
-        {/* Left Panel - Call Controls */}
-        <Paper 
-          sx={{ 
-            width: isMobile ? '100%' : 300,
-            display: 'flex',
-            flexDirection: 'column',
-            p: 2,
-            gap: 2
-          }}
-        >
-          <Typography variant="h6" gutterBottom>
-            Call Controls
-          </Typography>
-          
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<VideoIcon />}
-            onClick={startVideoCall}
-            disabled={isInCall}
-            fullWidth
-          >
-            Start Video Call
-          </Button>
-          
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<MicIcon />}
-            onClick={startVoiceCall}
-            disabled={isInCall}
-            fullWidth
-          >
-            Start Voice Call
-          </Button>
+      {/* Floating reactions */}
+      {floatingReactions.map(r => (
+        <FloatingReaction key={r.id} emoji={r.emoji} username={r.username} onDone={() => removeFloatingReaction(r.id)} />
+      ))}
 
-          {isInCall && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Button
-                variant={isVideoEnabled ? "contained" : "outlined"}
-                color={isVideoEnabled ? "primary" : "default"}
-                startIcon={isVideoEnabled ? <VideoIcon /> : <VideoOffIcon />}
-                onClick={toggleVideo}
-                fullWidth
-                size="small"
-              >
-                {isVideoEnabled ? 'Video On' : 'Video Off'}
-              </Button>
-              
-              <Button
-                variant={isAudioEnabled ? "contained" : "outlined"}
-                color={isAudioEnabled ? "primary" : "default"}
-                startIcon={isAudioEnabled ? <MicIcon /> : <MicOffIcon />}
-                onClick={toggleAudio}
-                fullWidth
-                size="small"
-              >
-                {isAudioEnabled ? 'Mic On' : 'Mic Off'}
-              </Button>
-              
-              <Button
-                variant={isScreenSharing ? "contained" : "outlined"}
-                startIcon={isScreenSharing ? <StopScreenShareIcon /> : <ScreenShareIcon />}
-                onClick={toggleScreenShare}
-                fullWidth
-                size="small"
-              >
-                {isScreenSharing ? 'Stop Share' : 'Share Screen'}
-              </Button>
-              
-              <Button
-                variant="contained"
-                color="error"
-                startIcon={<CallEndIcon />}
-                onClick={endCall}
-                fullWidth
-                size="small"
-              >
-                End Call
-              </Button>
+      {/* Tab content */}
+      <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        {mobileTab === 0 && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <Box sx={{ flex: 1, overflow: 'auto', backgroundColor: '#111' }}>
+              {videoSection}
             </Box>
-          )}
+            {controlBar}
+          </Box>
+        )}
+        {mobileTab === 1 && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {chatSection}
+          </Box>
+        )}
+        {mobileTab === 2 && (
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
+            {participantsPanel}
+          </Box>
+        )}
 
-          <Divider />
-          
-          <Typography variant="subtitle2">
-            Participants ({participants.length + 1})
-          </Typography>
-          <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
-            <ListItem>
-              <ListItemAvatar>
-                <Avatar>{username[0]?.toUpperCase()}</Avatar>
-              </ListItemAvatar>
-              <ListItemText 
-                primary={`${username} (You)`}
-                secondary={isInCall ? 'In call' : 'Online'}
-              />
-            </ListItem>
-            {participants.map((participant) => (
-              <ListItem key={participant.id}>
-                <ListItemAvatar>
-                  <Avatar>{participant.username[0]?.toUpperCase()}</Avatar>
-                </ListItemAvatar>
-                <ListItemText 
-                  primary={participant.username}
-                  secondary="Online"
-                />
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
-
-        {/* Right Panel - Chat and Video */}
-        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-          {/* Video Section */}
-          {isInCall && (
-            <Paper sx={{ 
-              m: 1, 
-              p: 1, 
-              height: isMobile ? 200 : 300,
-              display: 'flex',
-              gap: 1,
-              overflow: 'auto'
-            }}>
-              {/* Local Video */}
-              <VideoPlayer
-                ref={localVideoRef}
-                stream={localStream}
-                username={username + ' (You)'}
-                isLocal={true}
-                isAudioEnabled={isAudioEnabled}
-                isVideoEnabled={isVideoEnabled}
-                isScreenSharing={isScreenSharing}
-              />
-              
-              {/* Remote Videos */}
-              {Array.from(remoteStreams).map(([userId, stream]) => {
-                const participant = participants.find(p => p.id === userId);
-                return (
-                  <VideoPlayer
-                    key={userId}
-                    stream={stream}
-                    username={participant?.username || 'Unknown'}
-                    isLocal={false}
-                    isAudioEnabled={true}
-                    isVideoEnabled={true}
-                    userId={userId}
-                  />
-                );
-              })}
-            </Paper>
-          )}
-
-          {/* Chat Section */}
-          <Paper sx={{ 
-            m: 1, 
-            flexGrow: 1,
-            display: 'flex', 
-            flexDirection: 'column'
+        {/* VBG panel as overlay on mobile */}
+        {showVBGPanel && (
+          <Box sx={{
+            position: 'absolute', inset: 0, zIndex: 50,
+            backgroundColor: 'background.default',
+            display: 'flex', flexDirection: 'column',
           }}>
-            {/* Chat Header */}
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-              <Typography variant="h6">
-                <ChatIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Chat Messages
-              </Typography>
-            </Box>
-
-            {/* Messages */}
-            <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>
-              {messages.length === 0 ? (
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
-                  height: '100%',
-                  color: 'text.secondary' 
-                }}>
-                  <Typography>No messages yet. Start the conversation!</Typography>
-                </Box>
-              ) : (
-                messages.map((msg, index) => (
-                  <Card 
-                    key={index} 
-                    variant="outlined" 
-                    sx={{ 
-                      mb: 1, 
-                      maxWidth: '80%', 
-                      ml: msg.username === username ? 'auto' : 0,
-                      bgcolor: msg.username === username ? 'primary.light' : 'background.paper'
-                    }}
-                  >
-                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                      <Typography variant="caption" color="primary" fontWeight="bold">
-                        {msg.username}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.5, mb: 0.5 }}>
-                        {msg.message}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </Box>
-
-            {/* Message Input */}
-            <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-              <TextField
-                fullWidth
-                multiline
-                maxRows={3}
-                placeholder="Type a message..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleMessageKeyPress}
-                InputProps={{
-                  endAdornment: (
-                    <IconButton 
-                      color="primary" 
-                      onClick={sendMessage}
-                      disabled={!message.trim()}
-                    >
-                      <SendIcon />
-                    </IconButton>
-                  ),
-                }}
-              />
-            </Box>
-          </Paper>
-        </Box>
+            <VirtualBackgroundPanel
+              currentBg={currentBg}
+              onSetBackground={setBackground}
+              isLoading={vbgLoading}
+              error={vbgError}
+              onClose={() => setShowVBGPanel(false)}
+            />
+          </Box>
+        )}
       </Box>
 
-      {/* Participants Drawer */}
-      <Drawer
-        anchor="right"
-        open={participantsDrawerOpen}
-        onClose={() => setParticipantsDrawerOpen(false)}
+      {/* Mobile bottom nav */}
+      <BottomNavigation
+        value={mobileTab}
+        onChange={(_, v) => { setMobileTab(v); if (v === 1) setUnreadCount(0); }}
+        sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'background.paper' }}
       >
-        <Box sx={{ width: 300, p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Participants ({participants.length + 1})
-          </Typography>
-          <List>
-            <ListItem>
-              <ListItemAvatar>
-                <Avatar>{username[0]?.toUpperCase()}</Avatar>
-              </ListItemAvatar>
-              <ListItemText 
-                primary={`${username} (You)`}
-                secondary={
-                  <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
-                    {isInCall && <Chip size="small" label="In Call" color="primary" />}
-                    {isVideoEnabled && <Chip size="small" label="Video" color="success" />}
-                    {isAudioEnabled && <Chip size="small" label="Audio" color="success" />}
-                  </Box>
-                }
-              />
-            </ListItem>
-            {participants.map((participant) => (
-              <ListItem key={participant.id}>
-                <ListItemAvatar>
-                  <Avatar>{participant.username[0]?.toUpperCase()}</Avatar>
-                </ListItemAvatar>
-                <ListItemText 
-                  primary={participant.username}
-                  secondary={<Chip size="small" label="Online" color="success" />}
-                />
-              </ListItem>
-            ))}
-          </List>
-        </Box>
-      </Drawer>
+        <BottomNavigationAction label="Call" icon={<VideoIcon />} />
+        <BottomNavigationAction
+          label="Chat"
+          icon={
+            <Badge badgeContent={unreadCount} color="error">
+              <ChatIcon />
+            </Badge>
+          }
+        />
+        <BottomNavigationAction
+          label="People"
+          icon={
+            <Badge badgeContent={participants.length + 1} color="secondary">
+              <PeopleIcon />
+            </Badge>
+          }
+        />
+      </BottomNavigation>
 
-      {/* Snackbar for notifications */}
       <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        open={snackbar.open} autoHideDuration={4000}
+        onClose={() => setSnackbar(s => ({ ...s, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ bottom: 60 }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-        >
+        <Alert onClose={() => setSnackbar(s => ({ ...s, open: false }))} severity={snackbar.severity}>
           {snackbar.message}
         </Alert>
       </Snackbar>

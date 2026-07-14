@@ -71,13 +71,13 @@ function ChatBox({ socket, roomId, username }) {
       }
     };
 
-    socket.on('chat-message-received', handleChatMessage);
+    socket.on('receive-message', handleChatMessage);
     socket.on('typing-start', handleTypingStart);
     socket.on('typing-stop', handleTypingStop);
     socket.on('room-data', handleRoomData);
 
     return () => {
-      socket.off('chat-message-received', handleChatMessage);
+    socket.off('receive-message', handleChatMessage);
       socket.off('typing-start', handleTypingStart);
       socket.off('typing-stop', handleTypingStop);
       socket.off('room-data', handleRoomData);
@@ -97,11 +97,8 @@ function ChatBox({ socket, roomId, username }) {
       timestamp: new Date().toISOString(),
     };
 
-    // Add message locally first for instant feedback
-    setMessages(prev => [...prev, messageData]);
-    
-    // Send to server
-    socket.emit('send-chat-message', {
+    // Send to server (server will broadcast back to all including sender)
+    socket.emit('send-message', {
       roomId,
       ...messageData,
     });
@@ -448,7 +445,7 @@ function ChatBox({ socket, roomId, username }) {
                 },
               },
             }}
-            onKeyPress={(e) => {
+            onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 sendMessage(e);
               }
