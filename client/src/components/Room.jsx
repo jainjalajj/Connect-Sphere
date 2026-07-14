@@ -279,10 +279,10 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   }, [soundEnabled]);
 
   const copyRoomLink = useCallback(() => {
-    const link = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+    const link = `${window.location.origin}${window.location.pathname}?room=${roomId}${e2eKey ? `#key=${e2eKey}` : ''}`;
     navigator.clipboard.writeText(link)
       .then(() => showSnackbar('Room link copied!', 'success'));
-  }, [roomId, showSnackbar]);
+  }, [roomId, e2eKey, showSnackbar]);
 
   // ── Chat persistence & unread ──────────────────────────────────────────────
   useEffect(() => {
