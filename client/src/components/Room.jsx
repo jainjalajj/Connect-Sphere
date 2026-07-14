@@ -336,22 +336,24 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     setBackground,
   } = useVirtualBackground(localStream);
 
-  // When processedStream changes, update localStreamRef so WebRTC uses it
+  // When processedStream changes (VBG on/off), update WebRTC tracks
   useEffect(() => {
-    if (!processedStream) return;
-    localStreamRef.current = processedStream;
-    // Replace tracks in all active peer connections
+    // The active stream is processedStream when VBG is on, else localStream
+    const activeStream = processedStream || localStream;
+    if (!activeStream) return;
+
+    // Update peer connection video tracks
     peerConnections.current.forEach(pc => {
-      processedStream.getVideoTracks().forEach(newTrack => {
+      activeStream.getVideoTracks().forEach(newTrack => {
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
         if (sender) sender.replaceTrack(newTrack).catch(() => {});
       });
     });
     // Update local video preview
     if (localVideoRef.current) {
-      localVideoRef.current.srcObject = processedStream;
+      localVideoRef.current.srcObject = activeStream;
     }
-  }, [processedStream]);
+  }, [processedStream, localStream]);
 
   const pcConfig = {
     iceServers: CONFIG.ICE_SERVERS || [
@@ -411,24 +413,20 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   const playSoundRef = useRef(playSound);
   useEffect(() => { playSoundRef.current = playSound; }, [playSound]);
   const startSpeaking = useCallback(() => {
-    if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = true;
-        setIsAudioEnabled(true);
-        setPttActive(true);
-      }
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) {
+      track.enabled = true;
+      setPttActive(true);
+      // Note: don't call setIsAudioEnabled — that's the persistent mute state.
+      // PTT only temporarily enables the track.
     }
   }, []);
 
   const stopSpeaking = useCallback(() => {
-    if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = false;
-        setIsAudioEnabled(false);
-        setPttActive(false);
-      }
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) {
+      track.enabled = false;
+      setPttActive(false);
     }
   }, []);
 
@@ -436,14 +434,19 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     if (!isPushToTalk) return;
 
     const handleKeyDown = (e) => {
-      if (e.code === 'Space' && !e.repeat) {
-        startSpeaking();
-      }
+      if (e.code !== 'Space' || e.repeat) return;
+      // Don't fire while user is typing in an input or textarea
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      startSpeaking();
     };
     const handleKeyUp = (e) => {
-      if (e.code === 'Space') {
-        stopSpeaking();
-      }
+      if (e.code !== 'Space') return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      stopSpeaking();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -823,17 +826,76 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     setFloatingReactions(prev => prev.filter(r => r.id !== id));
   }, []);
 
-  // ── Push-to-talk toggle ────────────────────────────────────────────────────
-  const togglePushToTalk = () => {
-    const next = !isPushToTalk;
-    setIsPushToTalk(next);
-    if (next && localStreamRef.current) {
-      // Mute mic initially when PTT turns on
-      const t = localStreamRef.current.getAudioTracks()[0];
-      if (t) { t.enabled = false; setIsAudioEnabled(false); }
+  // ── Push-to-talk ──────────────────────────────────────────────────────────
+  // Use refs so keydown/keyup listeners always see fresh values without
+  // being re-registered on every render (which would cause event duplication).
+  const isPushToTalkRef = useRef(false);
+  const pttActiveRef    = useRef(false);
+
+  const startSpeaking = useCallback(() => {
+    if (!isPushToTalkRef.current) return;
+    if (pttActiveRef.current) return; // already speaking
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) {
+      track.enabled = true;
+      pttActiveRef.current = true;
+      setPttActive(true);
     }
-    showSnackbar(next ? 'Push-to-talk ON (hold Space to speak)' : 'Push-to-talk OFF', 'info');
-  };
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    if (!isPushToTalkRef.current) return;
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) {
+      track.enabled = false;
+      pttActiveRef.current = false;
+      setPttActive(false);
+    }
+  }, []);
+
+  const togglePushToTalk = useCallback(() => {
+    const next = !isPushToTalkRef.current;
+    isPushToTalkRef.current = next;
+    setIsPushToTalk(next);
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (next) {
+      // Turning PTT ON — mute mic immediately
+      if (track) { track.enabled = false; setIsAudioEnabled(false); }
+      showSnackbar('Push-to-talk ON — hold Space or button to speak', 'info');
+    } else {
+      // Turning PTT OFF — re-enable mic
+      pttActiveRef.current = false;
+      setPttActive(false);
+      if (track) { track.enabled = true; setIsAudioEnabled(true); }
+      showSnackbar('Push-to-talk OFF', 'info');
+    }
+  }, []);
+
+  // Space key listener for PTT
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.code !== 'Space') return;
+      if (!isPushToTalkRef.current) return;
+      // Don't fire if user is typing in an input
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      startSpeaking();
+    };
+    const onKeyUp = (e) => {
+      if (e.code !== 'Space') return;
+      if (!isPushToTalkRef.current) return;
+      e.preventDefault();
+      stopSpeaking();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [startSpeaking, stopSpeaking]);
+
 
   // ── Chat ───────────────────────────────────────────────────────────────────
   const sendMessage = async () => {
