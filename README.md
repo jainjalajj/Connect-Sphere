@@ -513,8 +513,8 @@ npx vercel --prod
 railway login && railway init && railway up
 
 # Render: connect GitHub repo, set build command to:
-# cd server && npm install
-# Start command: node index.js
+# npm install --prefix server
+# Start command: npm start
 ```
 
 ### Production Checklist
