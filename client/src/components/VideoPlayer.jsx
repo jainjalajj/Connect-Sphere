@@ -27,7 +27,13 @@ const VideoPlayer = forwardRef(({
   isAudioEnabled = true, 
   isVideoEnabled = true, 
   isScreenSharing = false,
-  userId 
+  userId,
+  avatarColor = null,
+  handRaised = false,
+  roomId = null,
+  variant = 'large', // 'large' or 'thumb'
+  isPinned = false,
+  onPin = null,
 }, ref) => {
   const videoRef = useRef();
   const [isConnected, setIsConnected] = React.useState(false);
@@ -188,18 +194,18 @@ const VideoPlayer = forwardRef(({
             <Box sx={{ textAlign: 'center' }}>
               <Avatar
                 sx={{
-                  width: 80,
-                  height: 80,
-                  fontSize: 32,
+                  width: variant === 'thumb' ? 44 : 80,
+                  height: variant === 'thumb' ? 44 : 80,
+                  fontSize: variant === 'thumb' ? 18 : 32,
                   fontWeight: 'bold',
-                  backgroundColor: getAvatarColor(username),
-                  mb: 2,
+                  backgroundColor: avatarColor || getAvatarColor(username),
+                  mb: variant === 'thumb' ? 0.5 : 2,
                   mx: 'auto',
                 }}
               >
-                {!stream ? <PersonIcon fontSize="large" /> : getInitials(username)}
+                {!stream ? <PersonIcon fontSize={variant === 'thumb' ? 'medium' : 'large'} /> : getInitials(username)}
               </Avatar>
-              {!stream && (
+              {!stream && variant !== 'thumb' && (
                 <Typography variant="body2" color="text.secondary">
                   {isLocal ? 'Initializing camera...' : 'Connecting...'}
                 </Typography>
@@ -226,9 +232,9 @@ const VideoPlayer = forwardRef(({
       <Box
         sx={{
           position: 'absolute',
-          top: 8,
-          left: 8,
-          right: 8,
+          top: variant === 'thumb' ? 4 : 8,
+          left: variant === 'thumb' ? 4 : 8,
+          right: variant === 'thumb' ? 4 : 8,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -244,10 +250,13 @@ const VideoPlayer = forwardRef(({
             color: 'white',
             fontWeight: isLocal ? 600 : 400,
             backdropFilter: 'blur(4px)',
-            maxWidth: 150,
+            maxWidth: variant === 'thumb' ? 70 : 150,
+            height: variant === 'thumb' ? 18 : 24,
+            fontSize: variant === 'thumb' ? '8px' : '11px',
             '& .MuiChip-label': {
               overflow: 'hidden',
               textOverflow: 'ellipsis',
+              px: variant === 'thumb' ? 0.8 : 1.5,
             },
           }}
         />
@@ -258,7 +267,7 @@ const VideoPlayer = forwardRef(({
             <SignalWifi4BarIcon 
               sx={{ 
                 color: 'success.main', 
-                fontSize: 16,
+                fontSize: variant === 'thumb' ? 12 : 16,
                 filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
               }} 
             />
@@ -266,7 +275,7 @@ const VideoPlayer = forwardRef(({
             <SignalWifiOffIcon 
               sx={{ 
                 color: 'error.main', 
-                fontSize: 16,
+                fontSize: variant === 'thumb' ? 12 : 16,
                 filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
               }} 
             />
@@ -276,7 +285,7 @@ const VideoPlayer = forwardRef(({
             <ScreenShareIcon 
               sx={{ 
                 color: 'primary.main', 
-                fontSize: 16,
+                fontSize: variant === 'thumb' ? 12 : 16,
                 filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
               }} 
             />
@@ -285,91 +294,160 @@ const VideoPlayer = forwardRef(({
       </Box>
 
       {/* Bottom Status Bar */}
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: 8,
-          left: 8,
-          right: 8,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 1,
-          zIndex: 2,
-        }}
-      >
-        {/* Audio Status */}
+      {/* Bottom Status Bar for Large View */}
+      {variant !== 'thumb' && (
         <Box
           sx={{
+            position: 'absolute',
+            bottom: 8,
+            left: 8,
+            right: 8,
             display: 'flex',
-            alignItems: 'center',
             justifyContent: 'center',
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            backgroundColor: isAudioEnabled 
-              ? 'rgba(87, 242, 135, 0.2)' 
-              : 'rgba(237, 66, 69, 0.2)',
-            border: '1px solid',
-            borderColor: isAudioEnabled ? 'success.main' : 'error.main',
-            backdropFilter: 'blur(4px)',
+            alignItems: 'center',
+            gap: 1,
+            zIndex: 2,
           }}
         >
-          {isAudioEnabled ? (
-            <MicIcon 
-              sx={{ 
-                color: 'success.main', 
-                fontSize: 16,
-                filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
-              }} 
-            />
-          ) : (
-            <MicOffIcon 
-              sx={{ 
-                color: 'error.main', 
-                fontSize: 16,
-                filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
-              }} 
-            />
-          )}
-        </Box>
+          {/* Audio Status */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              backgroundColor: isAudioEnabled 
+                ? 'rgba(87, 242, 135, 0.2)' 
+                : 'rgba(237, 66, 69, 0.2)',
+              border: '1px solid',
+              borderColor: isAudioEnabled ? 'success.main' : 'error.main',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            {isAudioEnabled ? (
+              <MicIcon 
+                sx={{ 
+                  color: 'success.main', 
+                  fontSize: 16,
+                  filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
+                }} 
+              />
+            ) : (
+              <MicOffIcon 
+                sx={{ 
+                  color: 'error.main', 
+                  fontSize: 16,
+                  filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
+                }} 
+              />
+            )}
+          </Box>
 
-        {/* Video Status */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            backgroundColor: isVideoEnabled 
-              ? 'rgba(87, 242, 135, 0.2)' 
-              : 'rgba(237, 66, 69, 0.2)',
-            border: '1px solid',
-            borderColor: isVideoEnabled ? 'success.main' : 'error.main',
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          {isVideoEnabled ? (
-            <VideocamIcon 
-              sx={{ 
-                color: 'success.main', 
-                fontSize: 16,
-                filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
-              }} 
-            />
-          ) : (
-            <VideocamOffIcon 
-              sx={{ 
-                color: 'error.main', 
-                fontSize: 16,
-                filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
-              }} 
-            />
+          {/* Video Status */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              backgroundColor: isVideoEnabled 
+                ? 'rgba(87, 242, 135, 0.2)' 
+                : 'rgba(237, 66, 69, 0.2)',
+              border: '1px solid',
+              borderColor: isVideoEnabled ? 'success.main' : 'error.main',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            {isVideoEnabled ? (
+              <VideocamIcon 
+                sx={{ 
+                  color: 'success.main', 
+                  fontSize: 16,
+                  filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
+                }} 
+              />
+            ) : (
+              <VideocamOffIcon 
+                sx={{ 
+                  color: 'error.main', 
+                  fontSize: 16,
+                  filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.3))'
+                }} 
+              />
+            )}
+          </Box>
+
+          {/* Large View Hand Raised Indicator */}
+          {handRaised && (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                border: '1px solid',
+                borderColor: 'warning.main',
+                backdropFilter: 'blur(4px)',
+              }}
+            >
+              <Typography sx={{ fontSize: 16 }}>✋</Typography>
+            </Box>
           )}
         </Box>
-      </Box>
+      )}
+
+      {/* Small corner indicators for Thumbnail View */}
+      {variant === 'thumb' && (
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 4,
+            right: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            zIndex: 2,
+          }}
+        >
+          {!isAudioEnabled && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 18, height: 18, borderRadius: '50%',
+              backgroundColor: 'rgba(237, 66, 69, 0.9)',
+              color: 'white',
+            }}>
+              <MicOffIcon sx={{ fontSize: 11 }} />
+            </Box>
+          )}
+          {!isVideoEnabled && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 18, height: 18, borderRadius: '50%',
+              backgroundColor: 'rgba(237, 66, 69, 0.9)',
+              color: 'white',
+            }}>
+              <VideocamOffIcon sx={{ fontSize: 11 }} />
+            </Box>
+          )}
+          {handRaised && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 18, height: 18, borderRadius: '50%',
+              backgroundColor: 'rgba(245, 158, 11, 0.9)',
+              fontSize: 10,
+            }}>
+              ✋
+            </Box>
+          )}
+        </Box>
+      )}
 
       {/* Local Video Mirror Effect */}
       {isLocal && (

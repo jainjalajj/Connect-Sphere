@@ -1326,7 +1326,7 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
           position: 'absolute',
           bottom: 16,
           right: 16,
-          width: { xs: 80, sm: 120, md: 160 },
+          width: { xs: 110, sm: 140, md: 180 },
           aspectRatio: '16/9',
           borderRadius: '12px',
           overflow: 'hidden',
