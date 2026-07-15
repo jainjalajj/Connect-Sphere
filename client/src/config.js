@@ -3,8 +3,14 @@ const getServerUrl = () => {
   if (!envUrl || envUrl.includes('your-actual-server.railway.app')) {
     if (typeof window !== 'undefined') {
       const hn = window.location.hostname;
-      if (hn === 'localhost' || hn === '127.0.0.1') {
-        return 'http://localhost:3001';
+      if (
+        hn === 'localhost' || 
+        hn === '127.0.0.1' || 
+        hn.startsWith('192.168.') || 
+        hn.startsWith('10.') || 
+        hn.startsWith('172.')
+      ) {
+        return `${window.location.protocol}//${hn}:3001`;
       }
       return window.location.origin;
     }
