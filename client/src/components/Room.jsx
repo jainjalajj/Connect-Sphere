@@ -49,6 +49,8 @@ import {
   Close as CloseIcon,
   VideoCall as VideoCallIcon,
   BlurOn as BlurOnIcon,
+  PushPin as PinIcon,
+  PushPinOutlined as PinOutlinedIcon,
 } from '@mui/icons-material';
 import socket from '../utils/socket';
 import { CONFIG } from '../config';
@@ -70,6 +72,8 @@ const VideoPlayer = forwardRef(({
   handRaised = false, userId, roomId,
   variant = 'large', // 'large' | 'thumb'
   isFeatured = false,
+  isPinned = false,
+  onPin,
   onClick,
 }, ref) => {
   const videoRef = useRef(null);
@@ -142,6 +146,24 @@ const VideoPlayer = forwardRef(({
         {!isAudioEnabled && (
           <MicOffIcon sx={{ position: 'absolute', top: 4, right: 4, fontSize: 10, color: '#ef4444', bgcolor: 'rgba(255,255,255,0.9)', borderRadius: '50%', p: 0.25 }} />
         )}
+        {!isLocal && onPin && (
+          <IconButton
+            size="small"
+            onClick={(e) => { e.stopPropagation(); onPin(); }}
+            sx={{
+              position: 'absolute', top: 4, left: 4,
+              bgcolor: 'rgba(0,0,0,0.5)',
+              color: isPinned ? '#6366f1' : '#ffffff',
+              width: 20, height: 20,
+              p: 0.25,
+              zIndex: 5,
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
+              '& .MuiSvgIcon-root': { fontSize: 12 }
+            }}
+          >
+            {isPinned ? <PinIcon /> : <PinOutlinedIcon />}
+          </IconButton>
+        )}
         {roomId && userId && (
           <AnnotationCanvas roomId={roomId} targetUserId={userId} color={avatarColor} isLocal={isLocal} />
         )}
@@ -175,6 +197,21 @@ const VideoPlayer = forwardRef(({
           borderRadius: '20px',
         }}
       />
+      {!isLocal && onPin && (
+        <IconButton
+          size="medium"
+          onClick={(e) => { e.stopPropagation(); onPin(); }}
+          sx={{
+            position: 'absolute', top: 12, left: 12,
+            bgcolor: 'rgba(0,0,0,0.5)',
+            color: isPinned ? '#818cf8' : '#ffffff',
+            zIndex: 5,
+            '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
+          }}
+        >
+          {isPinned ? <PinIcon /> : <PinOutlinedIcon />}
+        </IconButton>
+      )}
       {roomId && userId && (
         <AnnotationCanvas roomId={roomId} targetUserId={userId} color={avatarColor} isLocal={isLocal} />
       )}
@@ -303,8 +340,8 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   const [soundEnabled, setSoundEnabled] = useState(true);
   // Virtual background
   const [showVBGPanel, setShowVBGPanel] = useState(false);
-  // Featured speaker (speaker-view layout)
-  const [featuredUserId, setFeaturedUserId] = useState('local'); // 'local' | userId string
+  // Pinned remote speaker (null if grid view)
+  const [pinnedUserId, setPinnedUserId] = useState(null);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const localVideoRef = useRef(null);
@@ -1120,64 +1157,199 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     </Box>
   );
 
-  // Video section
-  const videoSection = (
-    <Box sx={{
-      display: 'flex', gap: 1.5, p: 1.5,
-      overflowX: 'auto',
-      flexWrap: 'wrap',
-      alignContent: 'flex-start',
-      flex: 1,
-      minHeight: isMobile ? 200 : 0,
-      background: 'radial-gradient(ellipse at 10% 10%, rgba(88,101,242,0.08) 0%, transparent 50%), radial-gradient(ellipse at 90% 90%, rgba(235,69,158,0.05) 0%, transparent 50%), #0a0a0f',
-    }}>
-      {isInCall && (
-        <VideoPlayer
-          ref={localVideoRef}
-          stream={processedStream || localStream}
-          username={`${username} (You)`}
-          isLocal
-          isAudioEnabled={isAudioEnabled}
-          isVideoEnabled={isVideoEnabled}
-          isScreenSharing={isScreenSharing}
-          avatarColor={avatarColor}
-          handRaised={handRaised}
-          userId={socket.id}
-          roomId={roomId}
-        />
-      )}
-      {Array.from(remoteStreams).map(([userId, stream]) => {
-        const p = participants.find(x => x.id === userId);
-        return (
-          <VideoPlayer
-            key={userId}
-            stream={stream}
-            username={p?.username || 'Unknown'}
-            isLocal={false}
-            isAudioEnabled
-            isVideoEnabled
-            avatarColor={getAvatarColor(p?.username)}
-            handRaised={raisedHands.has(userId)}
-            userId={userId}
-            roomId={roomId}
-          />
-        );
-      })}
-      {!isInCall && (
+  // Dynamic remote streams layout generator (Grid vs Pinned)
+  const renderRemoteVideos = () => {
+    const list = Array.from(remoteStreams);
+    if (list.length === 0) {
+      return (
         <Box sx={{
           flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 2,
-          minHeight: 200,
+          alignItems: 'center', justifyContent: 'center',
+          gap: 3, borderRadius: '20px',
+          border: '2px dashed rgba(99,102,241,0.2)',
+          background: 'rgba(255,255,255,0.02)',
+          height: '100%',
+          p: 3,
+          textAlign: 'center',
         }}>
-          <Typography color="text.secondary">No active call</Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button variant="contained" startIcon={<VideoIcon />} onClick={() => startCall(true)}>
-              Start Video
-            </Button>
-            <Button variant="outlined" startIcon={<MicIcon />} onClick={() => startCall(false)}>
-              Start Voice
-            </Button>
+          <Box sx={{
+            width: 80, height: 80, borderRadius: '50%',
+            background: 'linear-gradient(135deg, rgba(129,140,248,0.1), rgba(99,102,241,0.15))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 8px 32px rgba(99,102,241,0.05)',
+          }}>
+            <VideoIcon sx={{ fontSize: 36, color: '#818cf8' }} />
           </Box>
+          <Box>
+            <Typography variant="h6" fontWeight={700} color="text.primary" sx={{ mb: 1, fontFamily: "'Outfit', sans-serif" }}>
+              Waiting for others to join
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 300, mx: 'auto' }}>
+              Invite people to this room by sharing the link in your browser URL.
+            </Typography>
+          </Box>
+        </Box>
+      );
+    }
+
+    // Pinned View
+    if (pinnedUserId && remoteStreams.has(pinnedUserId)) {
+      const pinnedStream = remoteStreams.get(pinnedUserId);
+      const pinnedUser = participants.find(x => x.id === pinnedUserId);
+      const otherRemotes = list.filter(([uid]) => uid !== pinnedUserId);
+
+      return (
+        <Box sx={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          width: '100%',
+          height: '100%',
+          gap: 2,
+          p: 1,
+        }}>
+          {/* Pinned stream (large) */}
+          <Box sx={{ flex: 1, position: 'relative', minHeight: 0 }}>
+            <VideoPlayer
+              stream={pinnedStream}
+              username={pinnedUser?.username || 'Unknown'}
+              isLocal={false}
+              avatarColor={getAvatarColor(pinnedUser?.username)}
+              handRaised={raisedHands.has(pinnedUserId)}
+              userId={pinnedUserId}
+              roomId={roomId}
+              variant="large"
+              isPinned={true}
+              onPin={() => setPinnedUserId(null)}
+            />
+          </Box>
+
+          {/* Thumbnail list for remaining remote participants */}
+          {otherRemotes.length > 0 && (
+            <Box sx={{
+              width: isMobile ? '100%' : 140,
+              height: isMobile ? 100 : '100%',
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: isMobile ? 'row' : 'column',
+              gap: 1.5,
+              overflowX: isMobile ? 'auto' : 'hidden',
+              overflowY: isMobile ? 'hidden' : 'auto',
+              p: 0.5,
+              background: 'rgba(255,255,255,0.02)',
+              borderRadius: '16px',
+            }}>
+              {otherRemotes.map(([uid, stream]) => {
+                const p = participants.find(x => x.id === uid);
+                return (
+                  <Box key={uid} sx={{ width: isMobile ? 120 : '100%', height: isMobile ? '100%' : 100, flexShrink: 0 }}>
+                    <VideoPlayer
+                      stream={stream}
+                      username={p?.username || 'Unknown'}
+                      isLocal={false}
+                      avatarColor={getAvatarColor(p?.username)}
+                      handRaised={raisedHands.has(uid)}
+                      userId={uid}
+                      roomId={roomId}
+                      variant="thumb"
+                      isPinned={false}
+                      onPin={() => setPinnedUserId(uid)}
+                    />
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+        </Box>
+      );
+    }
+
+    // Grid View
+    const count = list.length;
+    let gridCols = 1;
+    if (count === 2) gridCols = 2;
+    else if (count >= 3 && count <= 4) gridCols = 2;
+    else if (count >= 5) gridCols = 3;
+
+    return (
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: `repeat(${gridCols}, 1fr)`
+        },
+        gap: 2,
+        p: 1,
+        width: '100%',
+        height: '100%',
+        overflowY: 'auto',
+        alignContent: 'center',
+      }}>
+        {list.map(([uid, stream]) => {
+          const p = participants.find(x => x.id === uid);
+          return (
+            <Box key={uid} sx={{ aspectRatio: '16/9', width: '100%', position: 'relative' }}>
+              <VideoPlayer
+                stream={stream}
+                username={p?.username || 'Unknown'}
+                isLocal={false}
+                avatarColor={getAvatarColor(p?.username)}
+                handRaised={raisedHands.has(uid)}
+                userId={uid}
+                roomId={roomId}
+                variant="large"
+                isPinned={false}
+                onPin={() => setPinnedUserId(uid)}
+              />
+            </Box>
+          );
+        })}
+      </Box>
+    );
+  };
+
+  // Video section (renders the remote video layout + local PIP)
+  const videoSection = (
+    <Box sx={{
+      width: '100%',
+      height: '100%',
+      position: 'relative',
+      flex: 1,
+      minHeight: isMobile ? 240 : 0,
+      background: 'radial-gradient(ellipse at 10% 10%, rgba(88,101,242,0.08) 0%, transparent 50%), radial-gradient(ellipse at 90% 90%, rgba(235,69,158,0.05) 0%, transparent 50%), #0a0a0f',
+      overflow: 'hidden',
+    }}>
+      {renderRemoteVideos()}
+
+      {/* Floating Picture-in-Picture Local Video */}
+      {isInCall && (
+        <Box sx={{
+          position: 'absolute',
+          bottom: 16,
+          right: 16,
+          width: { xs: 80, sm: 120, md: 160 },
+          aspectRatio: '16/9',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          border: '2px solid rgba(255,255,255,0.15)',
+          zIndex: 10,
+          background: '#000',
+          transition: 'all 0.2s ease',
+        }}>
+          <VideoPlayer
+            ref={localVideoRef}
+            stream={processedStream || localStream}
+            username={`${username} (You)`}
+            isLocal
+            isAudioEnabled={isAudioEnabled}
+            isVideoEnabled={isVideoEnabled}
+            isScreenSharing={isScreenSharing}
+            avatarColor={avatarColor}
+            handRaised={handRaised}
+            userId={socket.id}
+            roomId={roomId}
+            variant="thumb"
+          />
         </Box>
       )}
     </Box>
@@ -1329,18 +1501,6 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
 
   // ── Desktop layout ─────────────────────────────────────────────────────────
   if (!isMobile) {
-    // Compute who is featured
-    const featuredIsLocal = featuredUserId === 'local';
-    const featuredStream = featuredIsLocal
-      ? (processedStream || localStream)
-      : remoteStreams.get(featuredUserId);
-    const featuredParticipant = featuredIsLocal
-      ? null
-      : participants.find(x => x.id === featuredUserId);
-    const featuredUsername = featuredIsLocal ? `${username} (You)` : (featuredParticipant?.username || 'Unknown');
-    const featuredAvatarColor = featuredIsLocal ? avatarColor : getAvatarColor(featuredParticipant?.username);
-    const featuredHandRaised = featuredIsLocal ? handRaised : raisedHands.has(featuredUserId);
-
     return (
       <Box sx={{ height: '100vh', display: 'flex', backgroundColor: '#f8f9ff', overflow: 'hidden' }}>
 
@@ -1445,130 +1605,26 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
             </Typography>
           </Box>
 
-          {/* Main video area + thumbnail strip */}
-          <Box sx={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-
-            {/* Thumbnail strip (left of main video) */}
-            <Box sx={{
-              width: 104, flexShrink: 0,
-              display: 'flex', flexDirection: 'column',
-              gap: 1.5, p: 1.5,
-              overflowY: 'auto',
-              background: '#f8f9ff',
-              borderRight: '1px solid #e0e7ff',
-              '&::-webkit-scrollbar': { width: 3 },
-              '&::-webkit-scrollbar-thumb': { background: '#c7d2fe', borderRadius: 2 },
-            }}>
-              {/* Local thumbnail */}
-              {isInCall && (
-                <VideoPlayer
-                  ref={featuredUserId === 'local' ? localVideoRef : undefined}
-                  stream={processedStream || localStream}
-                  username={`${username} (You)`}
-                  isLocal
-                  isAudioEnabled={isAudioEnabled}
-                  isVideoEnabled={isVideoEnabled}
-                  isScreenSharing={isScreenSharing}
-                  avatarColor={avatarColor}
-                  handRaised={handRaised}
-                  userId={socket.id}
-                  roomId={roomId}
-                  variant="thumb"
-                  isFeatured={featuredUserId === 'local'}
-                  onClick={() => setFeaturedUserId('local')}
-                />
-              )}
-              {/* Remote thumbnails */}
-              {Array.from(remoteStreams).map(([uid, stream]) => {
-                const p = participants.find(x => x.id === uid);
-                return (
-                  <VideoPlayer
-                    key={uid}
-                    stream={stream}
-                    username={p?.username || 'Unknown'}
-                    isLocal={false}
-                    isAudioEnabled
-                    isVideoEnabled
-                    avatarColor={getAvatarColor(p?.username)}
-                    handRaised={raisedHands.has(uid)}
-                    userId={uid}
-                    roomId={roomId}
-                    variant="thumb"
-                    isFeatured={featuredUserId === uid}
-                    onClick={() => setFeaturedUserId(uid)}
-                  />
-                );
-              })}
+          {/* Main video workspace area */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, p: 2, position: 'relative' }}>
+            <Box sx={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', position: 'relative', borderRadius: '20px' }}>
+              {videoSection}
             </Box>
 
-            {/* Large featured speaker */}
-            <Box sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              {isInCall ? (
-                <Box sx={{ flex: 1, position: 'relative', minHeight: 0 }}>
-                  <VideoPlayer
-                    ref={featuredIsLocal ? localVideoRef : undefined}
-                    stream={featuredStream}
-                    username={featuredUsername}
-                    isLocal={featuredIsLocal}
-                    isAudioEnabled={featuredIsLocal ? isAudioEnabled : true}
-                    isVideoEnabled={featuredIsLocal ? isVideoEnabled : true}
-                    isScreenSharing={featuredIsLocal ? isScreenSharing : false}
-                    avatarColor={featuredAvatarColor}
-                    handRaised={featuredHandRaised}
-                    userId={featuredIsLocal ? socket.id : featuredUserId}
-                    roomId={roomId}
-                    variant="large"
-                  />
-                </Box>
-              ) : (
-                <Box sx={{
-                  flex: 1, display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center',
-                  gap: 3, borderRadius: '20px',
-                  border: '2px dashed #e0e7ff',
-                  background: '#fff',
-                }}>
-                  <Box sx={{
-                    width: 80, height: 80, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #eef2ff, #e0e7ff)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <VideoCallIcon sx={{ fontSize: 36, color: '#818cf8' }} />
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" fontWeight={700} color="text.primary" gutterBottom>
-                      Ready to connect?
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Start a call to see everyone here
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button variant="contained" startIcon={<VideoIcon />} onClick={() => startCall(true)}>
-                      Start Video
-                    </Button>
-                    <Button variant="outlined" startIcon={<MicIcon />} onClick={() => startCall(false)}>
-                      Voice Only
-                    </Button>
-                  </Box>
-                </Box>
-              )}
-
-              {/* Floating control bar */}
+            {/* Floating control bar */}
+            <Box sx={{
+              mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
+              flexWrap: 'wrap',
+            }}>
               <Box sx={{
-                mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
-                flexWrap: 'wrap',
+                display: 'flex', alignItems: 'center', gap: 1,
+                px: 2.5, py: 1.25,
+                borderRadius: '999px',
+                background: '#ffffff',
+                border: '1px solid #e0e7ff',
+                boxShadow: '0 4px 24px rgba(99,102,241,0.12)',
               }}>
-                <Box sx={{
-                  display: 'flex', alignItems: 'center', gap: 1,
-                  px: 2.5, py: 1.25,
-                  borderRadius: '999px',
-                  background: '#ffffff',
-                  border: '1px solid #e0e7ff',
-                  boxShadow: '0 4px 24px rgba(99,102,241,0.12)',
-                }}>
-                  {controlBar}
-                </Box>
+                {controlBar}
               </Box>
             </Box>
           </Box>

@@ -21,6 +21,7 @@ async function getSegmenter() {
 
   segmenterPromise = (async () => {
     const tf = await import('@tensorflow/tfjs-core');
+    await import('@tensorflow/tfjs-converter');
     await import('@tensorflow/tfjs-backend-webgl');
     const bodySegmentation = await import('@tensorflow-models/body-segmentation');
 
@@ -135,16 +136,35 @@ export function useVirtualBackground(rawStream) {
       const vid = hiddenVideo.current;
       vid.srcObject = rawStream;
       await new Promise((resolve) => {
-        vid.onloadedmetadata = () => {
+        if (vid.readyState >= 1) {
           vid.play().catch(() => {});
           resolve();
-        };
+        } else {
+          vid.onloadedmetadata = () => {
+            vid.play().catch(() => {});
+            resolve();
+          };
+        }
       });
 
       if (cancelled) return;
 
-      const w = vid.videoWidth  || 640;
-      const h = vid.videoHeight || 480;
+      // Ensure video has loaded dimensions to avoid 0x0 canvas / segmenter initialization
+      if (vid.videoWidth === 0 || vid.videoHeight === 0) {
+        await new Promise((resolve) => {
+          const checkSize = () => {
+            if (vid.videoWidth > 0 && vid.videoHeight > 0) {
+              resolve();
+            } else {
+              setTimeout(checkSize, 50);
+            }
+          };
+          checkSize();
+        });
+      }
+
+      const w = vid.videoWidth;
+      const h = vid.videoHeight;
       canvas.current.width  = w;
       canvas.current.height = h;
       const ctx = canvas.current.getContext('2d');
