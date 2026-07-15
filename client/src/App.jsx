@@ -281,8 +281,8 @@ function App() {
       >
         <Container maxWidth="sm">
           <Fade in timeout={800}>
-            <Card elevation={2} sx={{ borderRadius: 6, p: 2, backgroundColor: '#ffffff' }}>
-              <CardContent sx={{ p: 4 }}>
+            <Card elevation={2} sx={{ borderRadius: 6, p: { xs: 1, sm: 2 }, backgroundColor: '#ffffff' }}>
+              <CardContent sx={{ p: { xs: 2.5, sm: 4 } }}>
                 {/* Logo and Title */}
                   <Box sx={{ textAlign: 'center', mb: 4 }}>
                   <Box sx={{
@@ -304,7 +304,8 @@ function App() {
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
                       mb: 0.75,
-                      letterSpacing: '-1px',
+                      letterSpacing: { xs: '-0.5px', sm: '-1px' },
+                      fontSize: { xs: '2.25rem', sm: '3rem' },
                     }}
                   >
                     ConnectSphere

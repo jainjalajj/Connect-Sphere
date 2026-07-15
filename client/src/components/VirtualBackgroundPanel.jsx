@@ -104,15 +104,15 @@ function VirtualBackgroundPanel({ currentBg, onSetBackground, isLoading, error, 
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: 'background.paper',
-        borderLeft: '1px solid rgba(255,255,255,0.08)',
+        backgroundColor: '#ffffff',
+        borderLeft: '1px solid #e0e7ff',
         overflow: 'hidden',
       }}
     >
       {/* Header */}
       <Box sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        p: 2, borderBottom: '1px solid rgba(255,255,255,0.08)',
+        p: 2, borderBottom: '1px solid #e0e7ff',
         flexShrink: 0,
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -126,14 +126,14 @@ function VirtualBackgroundPanel({ currentBg, onSetBackground, isLoading, error, 
 
       {/* Loading / error banners */}
       {isLoading && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, backgroundColor: 'rgba(88,101,242,0.15)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, backgroundColor: '#eef2ff' }}>
           <CircularProgress size={14} />
-          <Typography variant="caption" color="primary.light">Loading AI model…</Typography>
+          <Typography variant="caption" color="primary">Loading AI model…</Typography>
         </Box>
       )}
       {error && (
-        <Box sx={{ px: 2, py: 1, backgroundColor: 'rgba(237,66,69,0.15)' }}>
-          <Typography variant="caption" color="error.light">{error}</Typography>
+        <Box sx={{ px: 2, py: 1, backgroundColor: '#fee2e2' }}>
+          <Typography variant="caption" color="error.main">{error}</Typography>
         </Box>
       )}
 
@@ -148,10 +148,9 @@ function VirtualBackgroundPanel({ currentBg, onSetBackground, isLoading, error, 
               display: 'flex', alignItems: 'center', gap: 1.5,
               p: 1.5, borderRadius: 2, cursor: 'pointer',
               border: '2px solid',
-              borderColor: currentBg.type === 'none' ? 'primary.main' : 'transparent',
-              backgroundColor: currentBg.type === 'none'
-                ? 'rgba(88,101,242,0.15)' : 'rgba(255,255,255,0.04)',
-              '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' },
+              borderColor: currentBg.type === 'none' ? 'primary.main' : '#e0e7ff',
+              backgroundColor: currentBg.type === 'none' ? '#eef2ff' : '#f8f9ff',
+              '&:hover': { backgroundColor: '#eef2ff' },
               transition: 'all 0.15s',
             }}
           >
@@ -178,10 +177,9 @@ function VirtualBackgroundPanel({ currentBg, onSetBackground, isLoading, error, 
                   flex: 1, py: 1.5, borderRadius: 2, cursor: 'pointer',
                   textAlign: 'center',
                   border: '2px solid',
-                  borderColor: isActive('blur', { radius }) ? 'primary.main' : 'transparent',
-                  backgroundColor: isActive('blur', { radius })
-                    ? 'rgba(88,101,242,0.2)' : 'rgba(255,255,255,0.04)',
-                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' },
+                  borderColor: isActive('blur', { radius }) ? 'primary.main' : '#e0e7ff',
+                  backgroundColor: isActive('blur', { radius }) ? '#eef2ff' : '#f8f9ff',
+                  '&:hover': { backgroundColor: '#eef2ff' },
                   transition: 'all 0.15s',
                 }}
               >
@@ -283,7 +281,7 @@ function VirtualBackgroundPanel({ currentBg, onSetBackground, isLoading, error, 
               fullWidth
               startIcon={<UploadIcon />}
               onClick={() => fileInputRef.current?.click()}
-              sx={{ borderColor: 'rgba(255,255,255,0.2)', color: 'text.secondary' }}
+              sx={{ borderColor: '#c7d2fe', color: '#6366f1' }}
             >
               Upload custom image
             </Button>
@@ -296,7 +294,7 @@ function VirtualBackgroundPanel({ currentBg, onSetBackground, isLoading, error, 
         </PanelSection>
 
         {/* Performance note */}
-        <Box sx={{ mt: 2, p: 1.5, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 2 }}>
+        <Box sx={{ mt: 2, p: 1.5, backgroundColor: '#eef2ff', borderRadius: 2 }}>
           <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.6 }}>
             💡 Background effects use your GPU. If you notice lag, try a lighter blur or disable effects.
           </Typography>

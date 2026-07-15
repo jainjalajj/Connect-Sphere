@@ -457,6 +457,22 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     };
   }, [isPushToTalk, startSpeaking, stopSpeaking]);
 
+  const togglePushToTalk = useCallback(() => {
+    const next = !isPushToTalk;
+    setIsPushToTalk(next);
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (next) {
+      // Turning PTT ON — mute mic immediately (user must hold Space/button to speak)
+      if (track) { track.enabled = false; setIsAudioEnabled(false); }
+      showSnackbar('Push-to-talk ON — hold Space or the button to speak', 'info');
+    } else {
+      // Turning PTT OFF — restore mic, clear any active speaking state
+      setPttActive(false);
+      if (track) { track.enabled = true; setIsAudioEnabled(true); }
+      showSnackbar('Push-to-talk OFF — mic is live', 'info');
+    }
+  }, [isPushToTalk]);
+
   // ── WebRTC helpers ─────────────────────────────────────────────────────────
   const createPeerConnection = useCallback((userId) => {
     const pc = new RTCPeerConnection(pcConfig);
@@ -562,9 +578,15 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     const onUserStartedCall = async (data) => {
       const stream = localStreamRef.current;
       if (!stream || !isInCallRef.current) return;
-      const pc = createPeerConnection(data.userId);
-      peerConnections.current.set(data.userId, pc);
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      let pc = peerConnections.current.get(data.userId);
+      if (!pc) {
+        pc = createPeerConnection(data.userId);
+        peerConnections.current.set(data.userId, pc);
+      }
+      stream.getTracks().forEach(t => {
+        const alreadyAdded = pc.getSenders().some(s => s.track === t);
+        if (!alreadyAdded) pc.addTrack(t, stream);
+      });
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       socket.emit('offer', { target: data.userId, offer, roomId });
@@ -574,8 +596,14 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       const stream = localStreamRef.current;
       if (!stream) return;
       let pc = peerConnections.current.get(sender);
-      if (!pc) { pc = createPeerConnection(sender); peerConnections.current.set(sender, pc); }
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      if (!pc) {
+        pc = createPeerConnection(sender);
+        peerConnections.current.set(sender, pc);
+      }
+      stream.getTracks().forEach(t => {
+        const alreadyAdded = pc.getSenders().some(s => s.track === t);
+        if (!alreadyAdded) pc.addTrack(t, stream);
+      });
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       await processQueuedCandidates(sender, pc);
       const answer = await pc.createAnswer();
@@ -825,76 +853,6 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   const removeFloatingReaction = useCallback((id) => {
     setFloatingReactions(prev => prev.filter(r => r.id !== id));
   }, []);
-
-  // ── Push-to-talk ──────────────────────────────────────────────────────────
-  // Use refs so keydown/keyup listeners always see fresh values without
-  // being re-registered on every render (which would cause event duplication).
-  const isPushToTalkRef = useRef(false);
-  const pttActiveRef    = useRef(false);
-
-  const startSpeaking = useCallback(() => {
-    if (!isPushToTalkRef.current) return;
-    if (pttActiveRef.current) return; // already speaking
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (track) {
-      track.enabled = true;
-      pttActiveRef.current = true;
-      setPttActive(true);
-    }
-  }, []);
-
-  const stopSpeaking = useCallback(() => {
-    if (!isPushToTalkRef.current) return;
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (track) {
-      track.enabled = false;
-      pttActiveRef.current = false;
-      setPttActive(false);
-    }
-  }, []);
-
-  const togglePushToTalk = useCallback(() => {
-    const next = !isPushToTalkRef.current;
-    isPushToTalkRef.current = next;
-    setIsPushToTalk(next);
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (next) {
-      // Turning PTT ON — mute mic immediately
-      if (track) { track.enabled = false; setIsAudioEnabled(false); }
-      showSnackbar('Push-to-talk ON — hold Space or button to speak', 'info');
-    } else {
-      // Turning PTT OFF — re-enable mic
-      pttActiveRef.current = false;
-      setPttActive(false);
-      if (track) { track.enabled = true; setIsAudioEnabled(true); }
-      showSnackbar('Push-to-talk OFF', 'info');
-    }
-  }, []);
-
-  // Space key listener for PTT
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if (e.code !== 'Space') return;
-      if (!isPushToTalkRef.current) return;
-      // Don't fire if user is typing in an input
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      e.preventDefault();
-      startSpeaking();
-    };
-    const onKeyUp = (e) => {
-      if (e.code !== 'Space') return;
-      if (!isPushToTalkRef.current) return;
-      e.preventDefault();
-      stopSpeaking();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, [startSpeaking, stopSpeaking]);
 
 
   // ── Chat ───────────────────────────────────────────────────────────────────
@@ -1461,8 +1419,8 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
             background: '#fff', borderBottom: '1px solid #e0e7ff',
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-                Room Chat
+              <Typography variant="subtitle1" fontWeight={800} color="text.primary" sx={{ letterSpacing: '-0.3px', fontFamily: "'Outfit', sans-serif" }}>
+                ConnectSphere
               </Typography>
               <Chip
                 label={`#${roomId}`}
@@ -1687,8 +1645,15 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'background.default' }}>
       {/* Mobile header */}
       <AppBar position="static" elevation={0} sx={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <Toolbar variant="dense">
-          <Typography variant="subtitle2" fontWeight={700} sx={{ flexGrow: 1 }}>#{roomId}</Typography>
+        <Toolbar variant="dense" sx={{ gap: 1 }}>
+          <Typography variant="subtitle1" fontWeight={800} color="text.primary" sx={{ letterSpacing: '-0.3px', fontFamily: "'Outfit', sans-serif" }}>
+            ConnectSphere
+          </Typography>
+          <Chip
+            label={`#${roomId}`}
+            size="small"
+            sx={{ mr: 'auto', bgcolor: '#eef2ff', color: '#6366f1', fontWeight: 600, fontSize: 10, height: 20 }}
+          />
           {isRecording && <Chip label="● REC" size="small" color="error" sx={{ mr: 1 }} />}
           {pttActive && <Chip label="🎤" size="small" color="success" sx={{ mr: 1 }} />}
           <IconButton size="small" color="inherit" onClick={copyRoomLink}><CopyIcon fontSize="small" /></IconButton>

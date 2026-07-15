@@ -2,15 +2,16 @@
 
 <div align="center">
 
-![ConnectSphere](https://img.shields.io/badge/ConnectSphere-v4.0-5865f2?style=for-the-badge&logo=video&logoColor=white)
-![React](https://img.shields.io/badge/React-18.2.0-61DAFB?style=flat&logo=react&logoColor=white)
+![ConnectSphere](https://img.shields.io/badge/ConnectSphere-v5.0-6366f1?style=for-the-badge&logo=video&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=flat&logo=node.js&logoColor=white)
-![WebRTC](https://img.shields.io/badge/WebRTC-Enabled-FF6B6B?style=flat)
+![WebRTC](https://img.shields.io/badge/WebRTC-Peer--to--Peer-FF6B6B?style=flat)
 ![Socket.IO](https://img.shields.io/badge/Socket.IO-4.7.4-010101?style=flat&logo=socket.io&logoColor=white)
-![Material-UI](https://img.shields.io/badge/MUI-5.15.10-0081CB?style=flat&logo=mui&logoColor=white)
+![Material-UI](https://img.shields.io/badge/MUI-5-0081CB?style=flat&logo=mui&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat&logo=vite&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
-**A modern, full-featured video communication platform with HD calls, real-time chat, screen sharing, recording, reactions, virtual backgrounds, and more.**
+**A production-ready, full-featured video communication platform with HD calls, E2EE chat, screen sharing, live annotations, virtual backgrounds, recording, reactions, and push-to-talk — all running in the browser.**
 
 [🚀 Quick Start](#-quick-start) • [✨ Features](#-features) • [🏗️ Architecture](#️-architecture) • [📖 Installation](#-installation) • [🔧 Configuration](#-configuration) • [🚀 Deployment](#-deployment) • [🤝 Contributing](#-contributing)
 

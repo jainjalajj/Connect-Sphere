@@ -1,5 +1,20 @@
+const getServerUrl = () => {
+  const envUrl = import.meta.env.VITE_SERVER_URL;
+  if (!envUrl || envUrl.includes('your-actual-server.railway.app')) {
+    if (typeof window !== 'undefined') {
+      const hn = window.location.hostname;
+      if (hn === 'localhost' || hn === '127.0.0.1') {
+        return 'http://localhost:3001';
+      }
+      return window.location.origin;
+    }
+    return 'http://localhost:3001';
+  }
+  return envUrl;
+};
+
 export const CONFIG = {
-  SOCKET_URL: import.meta.env.VITE_SERVER_URL || 'http://localhost:3001',
+  SOCKET_URL: getServerUrl(),
   SOCKET_OPTIONS: {
     transports: ['websocket', 'polling'],
     reconnection: true,

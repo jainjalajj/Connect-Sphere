@@ -1,36 +1,25 @@
 /**
  * useVirtualBackground
  *
- * Applies background blur or a virtual background colour/image to a camera
- * stream using TensorFlow.js + MediaPipe Selfie Segmentation.
+ * Applies background blur or a virtual background to a camera stream using
+ * TensorFlow.js + MediaPipe Selfie Segmentation.
  *
- * Pipeline:
- *   rawCameraStream → hidden <video> → TF segmentation → <canvas> → captureStream()
- *
- * Returns:
- *   processedStream  — MediaStream to use instead of raw camera stream
- *   isLoading        — true while the model is loading on first activation
- *   error            — string | null
- *   currentBg        — active BackgroundConfig
- *   setBackground    — (bg: BackgroundConfig) => void
- *
- * BackgroundConfig:
- *   { type: 'none' }
- *   { type: 'blur', radius: number }
- *   { type: 'color', color: string }
- *   { type: 'image', src: string, label?: string }
+ * Key fixes:
+ *  - Default is 'none' — no GPU cost until user picks an effect
+ *  - Model only loads when a non-none bg is requested (lazy init)
+ *  - Returns processedStream=null when bg is 'none' (caller uses raw stream)
+ *  - Stops the render loop immediately when bg switches back to 'none'
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// ── Singleton segmenter (shared across component remounts) ─────────────────
+// ── Singleton segmenter (shared across component remounts) ────────────────
 let segmenterPromise = null;
 
 async function getSegmenter() {
   if (segmenterPromise) return segmenterPromise;
 
   segmenterPromise = (async () => {
-    // Static imports — Vite will bundle these into the tfjs chunk
     const tf = await import('@tensorflow/tfjs-core');
     await import('@tensorflow/tfjs-backend-webgl');
     const bodySegmentation = await import('@tensorflow-models/body-segmentation');
@@ -50,22 +39,22 @@ async function getSegmenter() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_BG = { type: 'blur', radius: 10 };
+const DEFAULT_BG = { type: 'none' }; // ← FIX: was 'blur' — caused instant GPU load
 
 export function useVirtualBackground(rawStream) {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [currentBg, setCurrentBg] = useState(DEFAULT_BG);
+  const [error, setError]         = useState(null);
+  const [currentBg, _setCurrentBg] = useState(DEFAULT_BG);
   const [processedStream, setProcessedStream] = useState(null);
 
-  const bgRef = useRef(DEFAULT_BG);
-  const rafRef = useRef(null);
+  const bgRef    = useRef(DEFAULT_BG);
+  const rafRef   = useRef(null);
   const activeRef = useRef(false);
   const bgImageRef = useRef(null);
 
-  // Hidden elements — created once
+  // Hidden processing elements — created once
   const hiddenVideo = useRef(null);
-  const canvas = useRef(null);
+  const canvas      = useRef(null);
 
   if (!hiddenVideo.current) {
     hiddenVideo.current = document.createElement('video');
@@ -75,19 +64,6 @@ export function useVirtualBackground(rawStream) {
   if (!canvas.current) {
     canvas.current = document.createElement('canvas');
   }
-
-  const setBackground = useCallback((bg) => {
-    bgRef.current = bg;
-    setCurrentBg(bg);
-    if (bg.type === 'image' && bg.src) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => { bgImageRef.current = img; };
-      img.src = bg.src;
-    } else {
-      bgImageRef.current = null;
-    }
-  }, []);
 
   const stopProcessing = useCallback(() => {
     activeRef.current = false;
@@ -100,17 +76,39 @@ export function useVirtualBackground(rawStream) {
     vid.srcObject = null;
   }, []);
 
+  // Public setter — wraps state so we can sync ref
+  const setBackground = useCallback((bg) => {
+    bgRef.current = bg;
+    _setCurrentBg(bg);
+    if (bg.type === 'image' && bg.src) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { bgImageRef.current = img; };
+      img.src = bg.src;
+    } else {
+      bgImageRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
+    // If no stream, clear everything
     if (!rawStream) {
       stopProcessing();
       setProcessedStream(null);
       return;
     }
 
-    const hasVideo = rawStream.getVideoTracks().length > 0;
-    if (!hasVideo) {
-      // Audio-only — nothing to process
-      setProcessedStream(rawStream);
+    // If bg is 'none', stop any active processing and return null
+    // so the caller falls back to the raw stream directly
+    if (currentBg.type === 'none') {
+      stopProcessing();
+      setProcessedStream(null);
+      return;
+    }
+
+    // Audio-only stream — nothing to process visually
+    if (rawStream.getVideoTracks().length === 0) {
+      setProcessedStream(null);
       return;
     }
 
@@ -126,7 +124,7 @@ export function useVirtualBackground(rawStream) {
       } catch (e) {
         console.error('[VirtualBg] Model load failed:', e);
         setError('Background model failed to load. Using raw camera.');
-        setProcessedStream(rawStream);
+        setProcessedStream(null); // ← FIX: return null so caller uses raw
         setIsLoading(false);
         return;
       }
@@ -145,13 +143,13 @@ export function useVirtualBackground(rawStream) {
 
       if (cancelled) return;
 
-      const w = vid.videoWidth || 640;
+      const w = vid.videoWidth  || 640;
       const h = vid.videoHeight || 480;
-      canvas.current.width = w;
+      canvas.current.width  = w;
       canvas.current.height = h;
       const ctx = canvas.current.getContext('2d');
 
-      // Build processed stream: canvas video + original audio
+      // Canvas video + original audio tracks
       const canvasStream = canvas.current.captureStream(30);
       const combined = new MediaStream([
         ...canvasStream.getVideoTracks(),
@@ -168,68 +166,69 @@ export function useVirtualBackground(rawStream) {
 
         const bg = bgRef.current;
 
+        // If bg switched back to 'none' mid-session, stop cleanly
+        if (bg.type === 'none') {
+          stopProcessing();
+          setProcessedStream(null);
+          return;
+        }
+
         try {
-          if (bg.type === 'none') {
+          const results = await segmenter.segmentPeople(vid, {
+            flipHorizontal: false,
+            multiSegmentation: false,
+            segmentBodyParts: false,
+          });
+
+          if (!results?.length) {
             ctx.drawImage(vid, 0, 0, w, h);
           } else {
-            const results = await segmenter.segmentPeople(vid, {
-              flipHorizontal: false,
-              multiSegmentation: false,
-              segmentBodyParts: false,
-            });
-
-            if (!results?.length) {
+            // ── Draw background ──────────────────────────────────────────────
+            if (bg.type === 'blur') {
+              ctx.save();
+              ctx.filter = `blur(${bg.radius ?? 10}px)`;
               ctx.drawImage(vid, 0, 0, w, h);
+              ctx.filter = 'none';
+              ctx.restore();
+            } else if (bg.type === 'color') {
+              ctx.fillStyle = bg.color ?? '#1a1a2e';
+              ctx.fillRect(0, 0, w, h);
+            } else if (bg.type === 'image' && bgImageRef.current) {
+              ctx.drawImage(bgImageRef.current, 0, 0, w, h);
             } else {
-              // ── Draw background ──────────────────────────────────────────
-              if (bg.type === 'blur') {
-                ctx.save();
-                ctx.filter = `blur(${bg.radius ?? 10}px)`;
-                ctx.drawImage(vid, 0, 0, w, h);
-                ctx.filter = 'none';
-                ctx.restore();
-              } else if (bg.type === 'color') {
-                ctx.fillStyle = bg.color ?? '#1a1a2e';
-                ctx.fillRect(0, 0, w, h);
-              } else if (bg.type === 'image' && bgImageRef.current) {
-                ctx.drawImage(bgImageRef.current, 0, 0, w, h);
-              } else {
-                ctx.fillStyle = '#1a1a2e';
-                ctx.fillRect(0, 0, w, h);
-              }
-
-              // ── Composite person via segmentation mask ───────────────────
-              const maskData = await bodySegmentation.toBinaryMask(
-                results,
-                { r: 0, g: 0, b: 0, a: 255 }, // foreground opaque
-                { r: 0, g: 0, b: 0, a: 0 },   // background transparent
-                false,
-                0.65
-              );
-
-              // Off-screen: raw frame clipped to person mask
-              const off = document.createElement('canvas');
-              off.width = w; off.height = h;
-              const offCtx = off.getContext('2d');
-              offCtx.drawImage(vid, 0, 0, w, h);
-
-              const maskCanvas = document.createElement('canvas');
-              maskCanvas.width = w; maskCanvas.height = h;
-              const mCtx = maskCanvas.getContext('2d');
-              const imgData = mCtx.createImageData(w, h);
-              imgData.data.set(maskData.data);
-              mCtx.putImageData(imgData, 0, 0);
-
-              offCtx.globalCompositeOperation = 'destination-in';
-              offCtx.drawImage(maskCanvas, 0, 0);
-
-              // Composite person on top of background
-              ctx.drawImage(off, 0, 0);
+              ctx.fillStyle = '#1a1a2e';
+              ctx.fillRect(0, 0, w, h);
             }
+
+            // ── Composite person mask ────────────────────────────────────────
+            const maskData = await bodySegmentation.toBinaryMask(
+              results,
+              { r: 0, g: 0, b: 0, a: 255 }, // foreground opaque
+              { r: 0, g: 0, b: 0, a: 0 },   // background transparent
+              false,
+              0.65
+            );
+
+            const off = document.createElement('canvas');
+            off.width = w; off.height = h;
+            const offCtx = off.getContext('2d');
+            offCtx.drawImage(vid, 0, 0, w, h);
+
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = w; maskCanvas.height = h;
+            const mCtx = maskCanvas.getContext('2d');
+            const imgData = mCtx.createImageData(w, h);
+            imgData.data.set(maskData.data);
+            mCtx.putImageData(imgData, 0, 0);
+
+            offCtx.globalCompositeOperation = 'destination-in';
+            offCtx.drawImage(maskCanvas, 0, 0);
+
+            ctx.drawImage(off, 0, 0);
           }
         } catch {
           // Fallback to raw frame on any render error
-          ctx.drawImage(vid, 0, 0, w, h);
+          try { ctx.drawImage(vid, 0, 0, w, h); } catch { /* vid not ready */ }
         }
 
         rafRef.current = requestAnimationFrame(render);
@@ -244,7 +243,9 @@ export function useVirtualBackground(rawStream) {
       cancelled = true;
       stopProcessing();
     };
-  }, [rawStream, stopProcessing]);
+    // Re-run whenever stream changes OR the bg type changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawStream, currentBg.type, stopProcessing]);
 
   return { processedStream, isLoading, error, currentBg, setBackground };
 }
