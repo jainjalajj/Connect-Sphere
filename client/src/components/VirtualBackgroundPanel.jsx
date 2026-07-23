@@ -58,12 +58,18 @@ const buildGradientDataURI = (gradient, w = 320, h = 180) => {
 
 const GRADIENT_PRESETS = [
   { label: 'Aurora', stops: [[0, '#0f0c29'], [0.5, '#302b63'], [1, '#24243e']] },
-  { label: 'Ocean', stops: [[0, '#1a1a2e'], [0.5, '#16213e'], [1, '#0f3460']] },
+  { label: 'Ocean',  stops: [[0, '#1a1a2e'], [0.5, '#16213e'], [1, '#0f3460']] },
   { label: 'Sunset', stops: [[0, '#f7971e'], [0.5, '#ffd200'], [1, '#f7971e']] },
   { label: 'Forest', stops: [[0, '#0f2027'], [0.5, '#203a43'], [1, '#2c5364']] },
-  { label: 'Rose', stops: [[0, '#f953c6'], [1, '#b91d73']] },
-  { label: 'Emerald', stops: [[0, '#11998e'], [1, '#38ef7d']] },
+  { label: 'Rose',   stops: [[0, '#f953c6'], [1, '#b91d73']] },
+  { label: 'Emerald',stops: [[0, '#11998e'], [1, '#38ef7d']] },
 ];
+
+// Pre-compute gradient data URIs once at module load — not on every render
+const GRADIENT_PRESETS_WITH_SRC = GRADIENT_PRESETS.map((preset) => ({
+  ...preset,
+  src: buildGradientDataURI(preset.stops),
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -242,8 +248,7 @@ function VirtualBackgroundPanel({ currentBg, onSetBackground, isLoading, error, 
         {/* ── Gradient backgrounds ── */}
         <PanelSection title="Virtual Background">
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {GRADIENT_PRESETS.map(({ label, stops }) => {
-              const src = buildGradientDataURI(stops);
+            {GRADIENT_PRESETS_WITH_SRC.map(({ label, src }) => {
               const active = currentBg.type === 'image' && currentBg.label === label;
               return (
                 <Tooltip key={label} title={label}>

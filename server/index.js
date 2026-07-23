@@ -3,7 +3,28 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
+const crypto = require('crypto');
 require('dotenv').config();
+
+// Simple rate limiter: max eventsPerWindow events per socket per windowMs
+const RATE_LIMIT = { eventsPerWindow: 20, windowMs: 1000 };
+const socketEventCounts = new Map(); // socketId -> { count, resetAt }
+
+const isRateLimited = (socketId) => {
+  const now = Date.now();
+  const entry = socketEventCounts.get(socketId);
+  if (!entry || now > entry.resetAt) {
+    socketEventCounts.set(socketId, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
+    return false;
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT.eventsPerWindow) return true;
+  return false;
+};
+
+// Debug logging helper — set DEBUG=1 env var to enable verbose logs
+const DEBUG = process.env.DEBUG === '1';
+const debug = (...args) => { if (DEBUG) console.log(...args); };
 
 const app = express();
 const server = http.createServer(app);
@@ -146,7 +167,8 @@ const addMessageToRoom = (roomId, messageData) => {
   if (room) {
     const message = {
       ...messageData,
-      id: messageData.id || Date.now() + Math.random(),
+      // Use crypto.randomUUID() instead of Date.now() + Math.random() to avoid collisions
+      id: messageData.id || crypto.randomUUID(),
       timestamp: messageData.timestamp || new Date().toISOString(),
     };
     
@@ -164,7 +186,10 @@ const addMessageToRoom = (roomId, messageData) => {
 
 // Socket connection handling
 io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
+  debug(`User connected: ${socket.id}`);
+
+  // Clean up rate-limit entry on disconnect
+  socket.on('disconnect', () => socketEventCounts.delete(socket.id));
 
   // Handle user joining a room
   socket.on('join-room', (roomId, username, password, maxParticipants) => {
@@ -259,16 +284,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle WebRTC signaling - FIXED EVENT NAMES
+  // Handle WebRTC signaling
   socket.on('offer', (data) => {
     try {
-      const { target, offer, roomId } = data;
+      if (isRateLimited(socket.id)) return;
+      const { target, offer } = data;
       if (target && offer) {
-        socket.to(target).emit('offer', {
-          sender: socket.id,
-          offer: offer
-        });
-        console.log(`Offer sent from ${socket.id} to ${target} in room ${roomId}`);
+        socket.to(target).emit('offer', { sender: socket.id, offer });
+        debug(`Offer sent from ${socket.id} to ${target}`);
       }
     } catch (error) {
       console.error('Error handling offer:', error);
@@ -277,13 +300,11 @@ io.on('connection', (socket) => {
 
   socket.on('answer', (data) => {
     try {
-      const { target, answer, roomId } = data;
+      if (isRateLimited(socket.id)) return;
+      const { target, answer } = data;
       if (target && answer) {
-        socket.to(target).emit('answer', {
-          sender: socket.id,
-          answer: answer
-        });
-        console.log(`Answer sent from ${socket.id} to ${target} in room ${roomId}`);
+        socket.to(target).emit('answer', { sender: socket.id, answer });
+        debug(`Answer sent from ${socket.id} to ${target}`);
       }
     } catch (error) {
       console.error('Error handling answer:', error);
@@ -292,22 +313,23 @@ io.on('connection', (socket) => {
 
   socket.on('ice-candidate', (data) => {
     try {
-      const { target, candidate, roomId } = data;
+      if (isRateLimited(socket.id)) return;
+      const { target, candidate } = data;
       if (target && candidate) {
-        socket.to(target).emit('ice-candidate', {
-          sender: socket.id,
-          candidate: candidate
-        });
-        console.log(`ICE candidate sent from ${socket.id} to ${target} in room ${roomId}`);
+        socket.to(target).emit('ice-candidate', { sender: socket.id, candidate });
       }
     } catch (error) {
       console.error('Error handling ICE candidate:', error);
     }
   });
 
-  // Handle chat messages - FIXED EVENT NAME
+  // Handle chat messages
   socket.on('send-message', (data) => {
     try {
+      if (isRateLimited(socket.id)) {
+        socket.emit('error', 'Rate limit exceeded');
+        return;
+      }
       const { roomId, username, message } = data;
       
       if (!roomId || !username || !message) {
@@ -315,26 +337,23 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Validate message length
       if (message.length > 1000) {
         socket.emit('error', 'Message too long');
         return;
       }
 
       const messageData = {
-        id: data.id || Date.now() + Math.random(),
+        id: data.id || crypto.randomUUID(),
         username,
         message: message.trim(),
         timestamp: data.timestamp || new Date().toISOString(),
       };
 
-      // Add message to room
       const savedMessage = addMessageToRoom(roomId, messageData);
       
       if (savedMessage) {
-        // Broadcast to all users in room (including sender for confirmation)
         io.to(roomId).emit('receive-message', savedMessage);
-        console.log(`Message from ${username} in room ${roomId}: ${message}`);
+        debug(`Message from ${username} in room ${roomId}`);
       }
 
     } catch (error) {
@@ -346,6 +365,7 @@ io.on('connection', (socket) => {
   // Handle emoji reactions
   socket.on('send-reaction', (data) => {
     try {
+      if (isRateLimited(socket.id)) return;
       const { roomId, username, emoji } = data;
       if (roomId && username && emoji) {
         io.to(roomId).emit('reaction-received', { username, emoji, senderId: socket.id });
@@ -405,21 +425,14 @@ io.on('connection', (socket) => {
   // Handle user disconnection
   socket.on('disconnect', (reason) => {
     try {
-      console.log(`User disconnected: ${socket.id}, reason: ${reason}`);
-      
       const user = users.get(socket.id);
       if (user) {
         const { roomId } = user;
-        
-        // Remove user from room
         const leftUser = removeUserFromRoom(roomId, socket.id);
-        
-        // Notify other users in the room with proper user data
         if (leftUser) {
           socket.to(roomId).emit('user-left', leftUser);
         }
-        
-        console.log(`User ${user.username} left room ${roomId}`);
+        debug(`User ${user.username} left room ${roomId} (${reason})`);
       }
     } catch (error) {
       console.error('Error handling disconnect:', error);

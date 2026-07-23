@@ -9,10 +9,16 @@ export default function AnnotationCanvas({ roomId, targetUserId, color = '#ff000
   const currentPathRef = useRef([]);
   const [annotations, setAnnotations] = useState([]);
 
-  // Draw loop
+  // Draw loop — only active when there are annotations or the user is drawing
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // Nothing to draw — skip the RAF loop entirely
+    if (annotations.length === 0 && !isDrawing) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
     const ctx = canvas.getContext('2d');
     let animationFrame;
 
@@ -31,7 +37,6 @@ export default function AnnotationCanvas({ roomId, targetUserId, color = '#ff000
         const opacity = Math.max(0, 1 - (now - ann.timestamp) / FADE_DURATION);
         
         ctx.beginPath();
-        // Convert hex + opacity to rgba or #RRGGBBAA
         const alphaHex = Math.floor(opacity * 255).toString(16).padStart(2, '0');
         ctx.strokeStyle = `${ann.color}${alphaHex}`;
         ctx.lineWidth = 4;
@@ -68,7 +73,7 @@ export default function AnnotationCanvas({ roomId, targetUserId, color = '#ff000
 
     render();
     return () => cancelAnimationFrame(animationFrame);
-  }, [annotations, color]);
+  }, [annotations, color, isDrawing]);
 
   // Handle Resize
   useEffect(() => {
@@ -91,7 +96,6 @@ export default function AnnotationCanvas({ roomId, targetUserId, color = '#ff000
 
   // Listen for remote annotations
   useEffect(() => {
-    if (!socket) return;
     const onAnnotation = (data) => {
       if (data.targetUserId === targetUserId) {
         setAnnotations(prev => [
@@ -102,7 +106,7 @@ export default function AnnotationCanvas({ roomId, targetUserId, color = '#ff000
     };
     socket.on('annotation-received', onAnnotation);
     return () => socket.off('annotation-received', onAnnotation);
-  }, [socket, targetUserId]);
+  }, [targetUserId]); // socket is a module singleton — stable, not a dep
 
   const getCoordinates = (e) => {
     const canvas = canvasRef.current;

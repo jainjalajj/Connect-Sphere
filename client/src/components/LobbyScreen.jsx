@@ -148,25 +148,27 @@ function LobbyScreen({ username, roomId, avatarColor, onJoin, onBack }) {
   return (
     <Box sx={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(135deg, #eef2ff 0%, #f8f9ff 50%, #fdf4ff 100%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       p: 2,
     }}>
-      <Card elevation={24} sx={{
-        width: '100%', maxWidth: 560,
-        backgroundColor: 'rgba(47,49,54,0.97)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 3,
+      <Card elevation={4} sx={{
+        width: '100%', maxWidth: 520,
+        backgroundColor: '#ffffff',
+        border: '1px solid #e0e7ff',
+        borderRadius: 4,
         overflow: 'hidden',
+        boxShadow: '0 8px 40px rgba(99,102,241,0.12)',
       }}>
         {/* Camera preview */}
         <Box sx={{
           position: 'relative',
           width: '100%',
           aspectRatio: '16/9',
-          backgroundColor: '#111',
+          backgroundColor: '#0a0a0f',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden',
+          borderRadius: '0',
         }}>
           <video
             ref={videoRef}
@@ -209,7 +211,8 @@ function LobbyScreen({ username, roomId, avatarColor, onJoin, onBack }) {
 
         {/* Controls */}
         <Box sx={{ p: 3 }}>
-          <Typography variant="h6" fontWeight={700} gutterBottom>
+          <Typography variant="h6" fontWeight={700} gutterBottom color="text.primary"
+            sx={{ fontFamily: "'Outfit', sans-serif" }}>
             Ready to join, {username}?
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -299,7 +302,7 @@ function LobbyScreen({ username, roomId, avatarColor, onJoin, onBack }) {
               variant="outlined"
               startIcon={<BackIcon />}
               onClick={onBack}
-              sx={{ borderColor: 'rgba(255,255,255,0.2)', color: 'text.secondary' }}
+              sx={{ borderColor: 'rgba(99,102,241,0.3)', color: 'text.secondary' }}
             >
               Back
             </Button>
@@ -309,9 +312,9 @@ function LobbyScreen({ username, roomId, avatarColor, onJoin, onBack }) {
               endIcon={<EnterIcon />}
               onClick={handleJoin}
               sx={{
-                background: 'linear-gradient(45deg, #5865f2, #57f287)',
+                background: 'linear-gradient(135deg, #818cf8, #6366f1)',
                 fontWeight: 700, fontSize: 16,
-                '&:hover': { background: 'linear-gradient(45deg, #4752c4, #4ae374)' },
+                '&:hover': { background: 'linear-gradient(135deg, #6366f1, #4f46e5)' },
               }}
             >
               Join Room

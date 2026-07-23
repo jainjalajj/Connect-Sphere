@@ -56,6 +56,9 @@ export function useVirtualBackground(rawStream) {
   // Hidden processing elements — created once
   const hiddenVideo = useRef(null);
   const canvas      = useRef(null);
+  // Pre-allocated offscreen canvases — reused every frame to avoid GC pressure
+  const offCanvas   = useRef(null);
+  const maskCanvas  = useRef(null);
 
   if (!hiddenVideo.current) {
     hiddenVideo.current = document.createElement('video');
@@ -64,6 +67,12 @@ export function useVirtualBackground(rawStream) {
   }
   if (!canvas.current) {
     canvas.current = document.createElement('canvas');
+  }
+  if (!offCanvas.current) {
+    offCanvas.current = document.createElement('canvas');
+  }
+  if (!maskCanvas.current) {
+    maskCanvas.current = document.createElement('canvas');
   }
 
   const stopProcessing = useCallback(() => {
@@ -165,9 +174,15 @@ export function useVirtualBackground(rawStream) {
 
       const w = vid.videoWidth;
       const h = vid.videoHeight;
-      canvas.current.width  = w;
-      canvas.current.height = h;
+      canvas.current.width      = w;
+      canvas.current.height     = h;
+      offCanvas.current.width   = w;
+      offCanvas.current.height  = h;
+      maskCanvas.current.width  = w;
+      maskCanvas.current.height = h;
       const ctx = canvas.current.getContext('2d');
+      const offCtx  = offCanvas.current.getContext('2d');
+      const mCtx    = maskCanvas.current.getContext('2d');
 
       // Canvas video + original audio tracks
       const canvasStream = canvas.current.captureStream(30);
@@ -229,22 +244,19 @@ export function useVirtualBackground(rawStream) {
               0.65
             );
 
-            const off = document.createElement('canvas');
-            off.width = w; off.height = h;
-            const offCtx = off.getContext('2d');
+            // Reuse pre-allocated offscreen canvases (no per-frame allocation)
+            offCtx.globalCompositeOperation = 'source-over';
             offCtx.drawImage(vid, 0, 0, w, h);
 
-            const maskCanvas = document.createElement('canvas');
-            maskCanvas.width = w; maskCanvas.height = h;
-            const mCtx = maskCanvas.getContext('2d');
             const imgData = mCtx.createImageData(w, h);
             imgData.data.set(maskData.data);
             mCtx.putImageData(imgData, 0, 0);
 
             offCtx.globalCompositeOperation = 'destination-in';
-            offCtx.drawImage(maskCanvas, 0, 0);
+            offCtx.drawImage(maskCanvas.current, 0, 0);
 
-            ctx.drawImage(off, 0, 0);
+            offCtx.globalCompositeOperation = 'source-over';
+            ctx.drawImage(offCanvas.current, 0, 0);
           }
         } catch {
           // Fallback to raw frame on any render error

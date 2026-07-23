@@ -75,7 +75,11 @@ video {
 .nav-icon:hover { background: #ede9fe; color: #6366f1; }
 .nav-icon.active { background: #6366f1; color: #fff; }
 
-/* ── Mobile ─────────────────────────────────────────────────────── */
+/* ── Local video mirror (camera self-view) ──────────────────────────── */
+/* Defined here once — avoids repeated inline <style> tags per component */
+.local-video-mirror video { transform: scaleX(-1); }
+
+/* ── Mobile ─────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   video { border-radius: 12px; }
 }

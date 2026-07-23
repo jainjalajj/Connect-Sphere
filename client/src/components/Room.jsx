@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -17,8 +17,6 @@ import {
   IconButton,
   Badge,
   Divider,
-  Card,
-  CardContent,
   useTheme,
   useMediaQuery,
   Snackbar,
@@ -27,11 +25,9 @@ import {
   Fab,
   BottomNavigation,
   BottomNavigationAction,
-  Slide,
 } from '@mui/material';
 import {
   Videocam as VideoIcon,
-  VideocamOff as VideoOffIcon,
   Mic as MicIcon,
   MicOff as MicOffIcon,
   ScreenShare as ScreenShareIcon,
@@ -49,229 +45,25 @@ import {
   Close as CloseIcon,
   VideoCall as VideoCallIcon,
   BlurOn as BlurOnIcon,
-  PushPin as PinIcon,
-  PushPinOutlined as PinOutlinedIcon,
+  VideocamOff as VideoOffIcon,
 } from '@mui/icons-material';
 import socket from '../utils/socket';
 import { CONFIG } from '../config';
 import { sounds } from '../hooks/useSound';
-import { useChatPersistence } from '../hooks/useChatPersistence';
 import { useVirtualBackground } from '../hooks/useVirtualBackground';
 import VirtualBackgroundPanel from './VirtualBackgroundPanel';
-import { deriveKeyFromPassword, importEncryptionKey, encryptMessage, decryptMessage } from '../utils/crypto';
-import AnnotationCanvas from './AnnotationCanvas';
+import { deriveKeyFromPassword, importEncryptionKey } from '../utils/crypto';
+import { getAvatarColor, getInitials } from '../utils/avatarColor';
+import VideoPlayer from './VideoPlayer';
+import { useWebRTC } from '../hooks/useWebRTC';
+import { useRoomChat } from '../hooks/useRoomChat';
+
+// pcConfig is now internal to useWebRTC hook
 
 // ─── Emoji Reactions ────────────────────────────────────────────────────────
 const REACTIONS = ['👍', '❤️', '😂', '😮', '👏', '🎉'];
 
-// ─── Inline VideoPlayer ──────────────────────────────────────────────────────
-const VideoPlayer = forwardRef(({
-  stream, username, isLocal = false,
-  isAudioEnabled = true, isVideoEnabled = true,
-  isScreenSharing = false, avatarColor = '#6366f1',
-  handRaised = false, userId, roomId,
-  variant = 'large', // 'large' | 'thumb'
-  isFeatured = false,
-  isPinned = false,
-  onPin,
-  onClick,
-}, ref) => {
-  const videoRef = useRef(null);
-  const resolvedRef = ref || videoRef;
-
-  useEffect(() => {
-    const el = resolvedRef.current;
-    if (el && stream) {
-      el.srcObject = stream;
-      el.play().catch(e => console.warn('Autoplay prevented:', e));
-    }
-  }, [stream, resolvedRef]);
-
-  const initials = username?.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2) || '?';
-
-  if (variant === 'thumb') {
-    return (
-      <Box
-        className={`thumb-tile${isFeatured ? ' active-speaker' : ''}`}
-        onClick={onClick}
-        sx={{
-          position: 'relative',
-          width: 80, height: 80,
-          borderRadius: '16px',
-          overflow: 'hidden',
-          flexShrink: 0,
-          border: isFeatured ? '2px solid #6366f1' : '2px solid transparent',
-          boxShadow: isFeatured
-            ? '0 0 0 3px #6366f1, 0 4px 16px rgba(99,102,241,0.25)'
-            : '0 2px 8px rgba(0,0,0,0.12)',
-          background: isVideoEnabled && stream ? '#000' : avatarColor,
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-        }}
-      >
-        {isLocal && <style>{`.local-video-mirror video { transform: scaleX(-1); }`}</style>}
-        <video
-          ref={resolvedRef}
-          autoPlay playsInline muted={isLocal}
-          style={{
-            width: '100%', height: '100%', objectFit: 'cover',
-            display: isVideoEnabled && stream ? 'block' : 'none',
-          }}
-        />
-        {(!isVideoEnabled || !stream) && (
-          <Box sx={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: avatarColor,
-          }}>
-            <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#fff', fontFamily: "'Outfit', sans-serif" }}>
-              {initials}
-            </Typography>
-          </Box>
-        )}
-        {/* Name tag */}
-        <Box sx={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)',
-          px: 0.75, py: 0.5,
-        }}>
-          <Typography variant="caption" sx={{
-            color: '#fff', fontSize: 9, fontWeight: 700,
-            fontFamily: "'Outfit', sans-serif",
-            display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {isLocal ? 'You' : username?.split(' ')[0]}
-          </Typography>
-        </Box>
-        {!isAudioEnabled && (
-          <MicOffIcon sx={{ position: 'absolute', top: 4, right: 4, fontSize: 10, color: '#ef4444', bgcolor: 'rgba(255,255,255,0.9)', borderRadius: '50%', p: 0.25 }} />
-        )}
-        {!isLocal && onPin && (
-          <IconButton
-            size="small"
-            onClick={(e) => { e.stopPropagation(); onPin(); }}
-            sx={{
-              position: 'absolute', top: 4, left: 4,
-              bgcolor: 'rgba(0,0,0,0.5)',
-              color: isPinned ? '#6366f1' : '#ffffff',
-              width: 20, height: 20,
-              p: 0.25,
-              zIndex: 5,
-              '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
-              '& .MuiSvgIcon-root': { fontSize: 12 }
-            }}
-          >
-            {isPinned ? <PinIcon /> : <PinOutlinedIcon />}
-          </IconButton>
-        )}
-        {roomId && userId && (
-          <AnnotationCanvas roomId={roomId} targetUserId={userId} color={avatarColor} isLocal={isLocal} />
-        )}
-      </Box>
-    );
-  }
-
-  // Large / featured view
-  return (
-    <Box
-      className={isLocal ? 'local-video-mirror' : undefined}
-      sx={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        borderRadius: '20px',
-        overflow: 'hidden',
-        background: isVideoEnabled && stream ? '#000' : `linear-gradient(135deg, ${avatarColor}22, ${avatarColor}44)`,
-        boxShadow: '0 8px 40px rgba(99,102,241,0.15)',
-        border: '1px solid #e0e7ff',
-        flexShrink: 0,
-      }}
-    >
-      {isLocal && <style>{`.local-video-mirror video { transform: scaleX(-1); }`}</style>}
-      <video
-        ref={resolvedRef}
-        autoPlay playsInline muted={isLocal}
-        style={{
-          width: '100%', height: '100%', objectFit: 'cover',
-          display: isVideoEnabled && stream ? 'block' : 'none',
-          borderRadius: '20px',
-        }}
-      />
-      {!isLocal && onPin && (
-        <IconButton
-          size="medium"
-          onClick={(e) => { e.stopPropagation(); onPin(); }}
-          sx={{
-            position: 'absolute', top: 12, left: 12,
-            bgcolor: 'rgba(0,0,0,0.5)',
-            color: isPinned ? '#818cf8' : '#ffffff',
-            zIndex: 5,
-            '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
-          }}
-        >
-          {isPinned ? <PinIcon /> : <PinOutlinedIcon />}
-        </IconButton>
-      )}
-      {roomId && userId && (
-        <AnnotationCanvas roomId={roomId} targetUserId={userId} color={avatarColor} isLocal={isLocal} />
-      )}
-      {(!isVideoEnabled || !stream) && (
-        <Box sx={{
-          position: 'absolute', inset: 0,
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          background: `linear-gradient(135deg, ${avatarColor}15, #f8f9ff)`,
-        }}>
-          <Avatar sx={{
-            width: 96, height: 96, fontSize: 36,
-            backgroundColor: avatarColor, mb: 2,
-            fontFamily: "'Outfit', sans-serif", fontWeight: 700,
-            boxShadow: `0 8px 32px ${avatarColor}55`,
-          }}>
-            {initials}
-          </Avatar>
-          <Typography variant="h6" sx={{ color: '#1e1b4b', fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>
-            {username}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">Camera off</Typography>
-        </Box>
-      )}
-      {/* Bottom overlay bar */}
-      <Box sx={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 100%)',
-        px: 2, py: 1.5,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <Typography variant="subtitle2" sx={{
-          color: '#fff', fontWeight: 700,
-          fontFamily: "'Outfit', sans-serif",
-          textShadow: '0 1px 4px rgba(0,0,0,0.5)',
-        }}>
-          {username}{isLocal ? ' (You)' : ''}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-          {handRaised && <span style={{ fontSize: 16 }}>✋</span>}
-          {isScreenSharing && <ScreenShareIcon sx={{ color: '#f59e0b', fontSize: 16 }} />}
-          {!isAudioEnabled && (
-            <Box sx={{ bgcolor: '#ef4444', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <MicOffIcon sx={{ fontSize: 14, color: '#fff' }} />
-            </Box>
-          )}
-          {!isVideoEnabled && (
-            <Box sx={{ bgcolor: '#ef4444', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <VideoOffIcon sx={{ fontSize: 14, color: '#fff' }} />
-            </Box>
-          )}
-        </Box>
-      </Box>
-    </Box>
-  );
-});
-VideoPlayer.displayName = 'VideoPlayer';
-
-
-// ─── FloatingReaction ────────────────────────────────────────────────────────
+// ─── Main Room Component ─────────────────────────────────────────────────────
 const FloatingReaction = ({ emoji, username, onDone }) => {
   useEffect(() => {
     const t = setTimeout(onDone, 2500);
@@ -309,33 +101,17 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [localStream, setLocalStream] = useState(null);
-  const [remoteStreams, setRemoteStreams] = useState(new Map());
-  const [participants, setParticipants] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [message, setMessage] = useState('');
-  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isInCall, setIsInCall] = useState(false);
-  const [mobileTab, setMobileTab] = useState(0); // 0=video 1=chat 2=people
+  // (WebRTC, streams and chat state are managed by useWebRTC / useRoomChat hooks)
+  const [participants, setParticipants]                 = useState([]);
+  const [mobileTab, setMobileTab]                       = useState(0); // 0=video 1=chat 2=people
   const [participantsDrawerOpen, setParticipantsDrawerOpen] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [chatFocused, setChatFocused] = useState(false);
-  // Push-to-talk
-  const [isPushToTalk, setIsPushToTalk] = useState(false);
-  const [pttActive, setPttActive] = useState(false);
-  // Recording
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const recordedChunksRef = useRef([]);
+  const [snackbar, setSnackbar]                         = useState({ open: false, message: '', severity: 'info' });
+  const [chatFocused, setChatFocused]                   = useState(false);
   // Raise hand
-  const [handRaised, setHandRaised] = useState(false);
+  const [handRaised, setHandRaised]   = useState(false);
   const [raisedHands, setRaisedHands] = useState(new Map()); // userId -> username
-  // Reactions
+  // Reactions picker
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [floatingReactions, setFloatingReactions] = useState([]); // [{id, emoji, username}]
   // Sound toggle
   const [soundEnabled, setSoundEnabled] = useState(true);
   // Virtual background
@@ -344,13 +120,9 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   const [pinnedUserId, setPinnedUserId] = useState(null);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
-  const localVideoRef = useRef(null);
-  const peerConnections = useRef(new Map());
-  const messagesEndRef = useRef(null);
-  const localStreamRef = useRef(null); // stable ref for closures
-  const pendingIceCandidates = useRef(new Map()); // userId -> Array of ICE candidates
+  const messagesEndRef = useRef(null); // chat auto-scroll
 
-  // E2EE Crypto Key Promise
+  // E2EE Crypto Key Promise (stable across renders)
   const cryptoKeyPromiseRef = useRef(null);
   if (!cryptoKeyPromiseRef.current) {
     if (password) {
@@ -362,7 +134,52 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     }
   }
 
-  const { loadMessages, saveMessages } = useChatPersistence(roomId);
+  const showSnackbar = useCallback((msg, severity = 'info') => {
+    setSnackbar({ open: true, message: msg, severity });
+  }, []);
+
+  const playSound = useCallback((type) => {
+    if (!soundEnabled) return;
+    sounds[type]?.();
+  }, [soundEnabled]);
+
+  // ── useWebRTC ─────────────────────────────────────────────────────────────
+  const {
+    localStream, localStreamRef, localVideoRef,
+    remoteStreams,
+    isInCall, isVideoEnabled, isAudioEnabled,
+    isScreenSharing, isRecording,
+    isPushToTalk, pttActive,
+    peerConnections,
+    startCall, endCall,
+    toggleVideo, toggleAudio, toggleScreenShare,
+    startRecording, stopRecording,
+    startSpeaking, stopSpeaking, togglePushToTalk,
+    replaceVideoTracks,
+  } = useWebRTC({ roomId, username, password, startWithVideo, startWithAudio, showSnackbar, playSound });
+
+  // ── isChatVisible — defined before useRoomChat so the hook receives it ────
+  const isChatVisible = isMobile ? mobileTab === 1 : true;
+
+  const {
+    messages, message, setMessage,
+    unreadCount, setUnreadCount,
+    sendMessage,
+    floatingReactions, sendReaction, removeFloatingReaction,
+    mergeServerMessages,
+  } = useRoomChat({ roomId, username, cryptoKeyPromiseRef, isChatVisible, playSound });
+
+  const copyRoomLink = useCallback(() => {
+    const link = `${window.location.origin}${window.location.pathname}?room=${roomId}${e2eKey ? `#key=${e2eKey}` : ''}`;
+    navigator.clipboard.writeText(link)
+      .then(() => showSnackbar('Room link copied!', 'success'));
+  }, [roomId, e2eKey, showSnackbar]);
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
 
   // Virtual background — processes rawStream → processedStream via TF.js
   const {
@@ -373,167 +190,26 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     setBackground,
   } = useVirtualBackground(localStream);
 
-  // When processedStream changes (VBG on/off), update WebRTC tracks
+  // When VBG processedStream changes, hand updated tracks to WebRTC peers
   useEffect(() => {
-    // The active stream is processedStream when VBG is on, else localStream
     const activeStream = processedStream || localStream;
     if (!activeStream) return;
-
-    // Update peer connection video tracks
-    peerConnections.current.forEach(pc => {
-      activeStream.getVideoTracks().forEach(newTrack => {
-        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-        if (sender) sender.replaceTrack(newTrack).catch(() => {});
-      });
-    });
-    // Update local video preview
+    replaceVideoTracks(activeStream);
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = activeStream;
     }
-  }, [processedStream, localStream]);
+  }, [processedStream, localStream, replaceVideoTracks, localVideoRef]);
 
-  const pcConfig = {
-    iceServers: CONFIG.ICE_SERVERS || [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ],
-  };
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  const showSnackbar = useCallback((msg, severity = 'info') => {
-    setSnackbar({ open: true, message: msg, severity });
-  }, []);
-
-  const playSound = useCallback((type) => {
-    if (!soundEnabled) return;
-    sounds[type]?.();
-  }, [soundEnabled]);
-
-  const copyRoomLink = useCallback(() => {
-    const link = `${window.location.origin}${window.location.pathname}?room=${roomId}${e2eKey ? `#key=${e2eKey}` : ''}`;
-    navigator.clipboard.writeText(link)
-      .then(() => showSnackbar('Room link copied!', 'success'));
-  }, [roomId, e2eKey, showSnackbar]);
-
-  // ── Chat persistence & unread ──────────────────────────────────────────────
-  useEffect(() => {
-    const saved = loadMessages();
-    if (saved.length) setMessages(saved);
-  }, [loadMessages]);
-
-  useEffect(() => {
-    if (messages.length) saveMessages(messages);
-  }, [messages, saveMessages]);
-
-  // Auto-scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Track unread messages when chat is not focused
-  const isChatVisible = isMobile ? mobileTab === 1 : true;
-  useEffect(() => {
-    if (!isChatVisible) {
-      // will increment on new messages below
-    } else {
-      setUnreadCount(0);
-    }
-  }, [isChatVisible]);
-
-  // ── Stable refs for values used inside socket closures ────────────────────
-  const isInCallRef = useRef(false);
-  useEffect(() => { isInCallRef.current = isInCall; }, [isInCall]);
-
+  // ── Stable refs for values used inside socket closures ───────────────────
   const showSnackbarRef = useRef(showSnackbar);
   useEffect(() => { showSnackbarRef.current = showSnackbar; }, [showSnackbar]);
 
   const playSoundRef = useRef(playSound);
   useEffect(() => { playSoundRef.current = playSound; }, [playSound]);
-  const startSpeaking = useCallback(() => {
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (track) {
-      track.enabled = true;
-      setPttActive(true);
-      // Note: don't call setIsAudioEnabled — that's the persistent mute state.
-      // PTT only temporarily enables the track.
-    }
-  }, []);
 
-  const stopSpeaking = useCallback(() => {
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (track) {
-      track.enabled = false;
-      setPttActive(false);
-    }
-  }, []);
+  // ── PTT / audio / media all handled by useWebRTC hook ────────────────────
 
-  useEffect(() => {
-    if (!isPushToTalk) return;
-
-    const handleKeyDown = (e) => {
-      if (e.code !== 'Space' || e.repeat) return;
-      // Don't fire while user is typing in an input or textarea
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      e.preventDefault();
-      startSpeaking();
-    };
-    const handleKeyUp = (e) => {
-      if (e.code !== 'Space') return;
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      e.preventDefault();
-      stopSpeaking();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [isPushToTalk, startSpeaking, stopSpeaking]);
-
-  const togglePushToTalk = useCallback(() => {
-    const next = !isPushToTalk;
-    setIsPushToTalk(next);
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (next) {
-      // Turning PTT ON — mute mic immediately (user must hold Space/button to speak)
-      if (track) { track.enabled = false; setIsAudioEnabled(false); }
-      showSnackbar('Push-to-talk ON — hold Space or the button to speak', 'info');
-    } else {
-      // Turning PTT OFF — restore mic, clear any active speaking state
-      setPttActive(false);
-      if (track) { track.enabled = true; setIsAudioEnabled(true); }
-      showSnackbar('Push-to-talk OFF — mic is live', 'info');
-    }
-  }, [isPushToTalk]);
-
-  // ── WebRTC helpers ─────────────────────────────────────────────────────────
-  const createPeerConnection = useCallback((userId) => {
-    const pc = new RTCPeerConnection(pcConfig);
-
-    pc.ontrack = (event) => {
-      const [stream] = event.streams;
-      setRemoteStreams(prev => new Map(prev).set(userId, stream));
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.emit('ice-candidate', { target: userId, candidate: event.candidate, roomId });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') pc.restartIce();
-    };
-
-    return pc;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
-
-  // ── Room init & socket listeners ───────────────────────────────────────────
+  // ── Main socket listeners (room join, participants, signaling refs) ────────
   useEffect(() => {
     socket.emit('join-room', roomId, username, password || null, maxParticipants);
 
@@ -546,15 +222,7 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
           ...m,
           message: await decryptMessage(m.message, key)
         })));
-        
-        setMessages(prev => {
-          // Merge server messages with local cache, deduplicate by id
-          const ids = new Set(prev.map(m => m.id));
-          const merged = [...prev];
-          decryptedMessages.forEach(m => { if (!ids.has(m.id)) merged.push(m); });
-          merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-          return merged;
-        });
+        mergeServerMessages(decryptedMessages);
       }
     };
 
@@ -567,38 +235,11 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       playSoundRef.current('userJoined');
     };
 
-    const processQueuedCandidates = async (userId, pc) => {
-      const candidates = pendingIceCandidates.current.get(userId) || [];
-      for (const candidate of candidates) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.error('Error adding queued ICE candidate:', e);
-        }
-      }
-      pendingIceCandidates.current.delete(userId);
-    };
-
     const onUserLeft = (data) => {
       setParticipants(prev => prev.filter(p => p.id !== data.id));
-      setRemoteStreams(prev => { const m = new Map(prev); m.delete(data.id); return m; });
-      setRaisedHands(prev => { const m = new Map(prev); m.delete(data.id); return m; });
-      pendingIceCandidates.current.delete(data.id);
-      const pc = peerConnections.current.get(data.id);
-      if (pc) { pc.close(); peerConnections.current.delete(data.id); }
+      // Note: remoteStreams + peerConnections are cleaned up by useWebRTC's own listener
       showSnackbarRef.current(`${data.username} left`, 'warning');
       playSoundRef.current('userLeft');
-    };
-
-    const onReceiveMessage = async (data) => {
-      const key = await cryptoKeyPromiseRef.current;
-      const decrypted = await decryptMessage(data.message, key);
-      const dataWithDecrypted = { ...data, message: decrypted };
-      setMessages(prev => [...prev, dataWithDecrypted]);
-      if (!isChatVisible) {
-        setUnreadCount(c => c + 1);
-        playSoundRef.current('message');
-      }
     };
 
     const onJoinError = (msg) => {
@@ -606,115 +247,21 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       onLeave();
     };
 
-    const onReactionReceived = ({ username: rUser, emoji }) => {
-      const id = Date.now() + Math.random();
-      setFloatingReactions(prev => [...prev, { id, emoji, username: rUser }]);
-      playSoundRef.current('reaction');
-    };
-
-    const onUserStartedCall = async (data) => {
-      const stream = localStreamRef.current;
-      if (!stream || !isInCallRef.current) return;
-      let pc = peerConnections.current.get(data.userId);
-      if (!pc) {
-        pc = createPeerConnection(data.userId);
-        peerConnections.current.set(data.userId, pc);
-      }
-      stream.getTracks().forEach(t => {
-        const alreadyAdded = pc.getSenders().some(s => s.track === t);
-        if (!alreadyAdded) pc.addTrack(t, stream);
-      });
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit('offer', { target: data.userId, offer, roomId });
-    };
-
-    const onOffer = async ({ sender, offer }) => {
-      const stream = localStreamRef.current;
-      if (!stream) return;
-      let pc = peerConnections.current.get(sender);
-      if (!pc) {
-        pc = createPeerConnection(sender);
-        peerConnections.current.set(sender, pc);
-      }
-      stream.getTracks().forEach(t => {
-        const alreadyAdded = pc.getSenders().some(s => s.track === t);
-        if (!alreadyAdded) pc.addTrack(t, stream);
-      });
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      await processQueuedCandidates(sender, pc);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit('answer', { target: sender, answer, roomId });
-    };
-
-    const onAnswer = async ({ sender, answer }) => {
-      const pc = peerConnections.current.get(sender);
-      if (pc && pc.signalingState === 'have-local-offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        await processQueuedCandidates(sender, pc);
-      }
-    };
-
-    const onIceCandidate = async ({ sender, candidate }) => {
-      const pc = peerConnections.current.get(sender);
-      if (pc && pc.remoteDescription) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.error('Error adding ICE candidate:', e);
-        }
-      } else {
-        if (!pendingIceCandidates.current.has(sender)) {
-          pendingIceCandidates.current.set(sender, []);
-        }
-        pendingIceCandidates.current.get(sender).push(candidate);
-      }
-    };
-
-    const onCallEnded = (data) => {
-      if (data.userId) {
-        setRemoteStreams(prev => { const m = new Map(prev); m.delete(data.userId); return m; });
-        const pc = peerConnections.current.get(data.userId);
-        if (pc) { pc.close(); peerConnections.current.delete(data.userId); }
-      }
-      showSnackbar(`Call ended by ${data.username || 'remote user'}`, 'info');
-    };
-
-    socket.on('room-data', onRoomData);
+    socket.on('room-data',   onRoomData);
     socket.on('user-joined', onUserJoined);
-    socket.on('user-left', onUserLeft);
-    socket.on('receive-message', onReceiveMessage);
-    socket.on('join-error', onJoinError);
-    socket.on('reaction-received', onReactionReceived);
-    socket.on('user-started-call', onUserStartedCall);
-    socket.on('offer', onOffer);
-    socket.on('answer', onAnswer);
-    socket.on('ice-candidate', onIceCandidate);
-    socket.on('call-ended', onCallEnded);
+    socket.on('user-left',   onUserLeft);
+    socket.on('join-error',  onJoinError);
 
     return () => {
-      socket.off('room-data', onRoomData);
+      socket.off('room-data',   onRoomData);
       socket.off('user-joined', onUserJoined);
-      socket.off('user-left', onUserLeft);
-      socket.off('receive-message', onReceiveMessage);
-      socket.off('join-error', onJoinError);
-      socket.off('reaction-received', onReactionReceived);
-      socket.off('user-started-call', onUserStartedCall);
-      socket.off('offer', onOffer);
-      socket.off('answer', onAnswer);
-      socket.off('ice-candidate', onIceCandidate);
-      socket.off('call-ended', onCallEnded);
-
-      localStreamRef.current?.getTracks().forEach(t => t.stop());
-      peerConnections.current.forEach(pc => pc.close());
-      peerConnections.current.clear();
-      pendingIceCandidates.current.clear();
+      socket.off('user-left',   onUserLeft);
+      socket.off('join-error',  onJoinError);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, username]);
 
-  // ── Raise hand — separate effect so it always has fresh state ─────────────
+  // ── Raise hand — uses showSnackbarRef so it doesn't need re-registration ──
   useEffect(() => {
     const onHandRaised = ({ userId, username: rUser, raised }) => {
       setRaisedHands(prev => {
@@ -727,191 +274,16 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
     };
     socket.on('hand-raised', onHandRaised);
     return () => socket.off('hand-raised', onHandRaised);
-  }); // no dep array — re-registers every render so closure is always fresh
-
-  // ── Media ──────────────────────────────────────────────────────────────────
-  const getUserMedia = async (video = true, audio = true) => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: video ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false,
-      audio: audio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
-    });
-    stream.getTracks().forEach(t => { t.enabled = true; });
-    return stream;
-  };
-
-  const startCall = async (withVideo) => {
-    try {
-      localStreamRef.current?.getTracks().forEach(t => t.stop());
-      const stream = await getUserMedia(withVideo, true);
-      localStreamRef.current = stream;
-      setLocalStream(stream);
-      setIsVideoEnabled(withVideo);
-      setIsAudioEnabled(true);
-      setIsInCall(true);
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        await localVideoRef.current.play().catch(() => {});
-      }
-      socket.emit('start-call', { roomId, type: withVideo ? 'video' : 'voice', username });
-      showSnackbar(withVideo ? 'Video call started' : 'Voice call started', 'success');
-    } catch (err) {
-      showSnackbar(err.name === 'NotAllowedError' ? 'Camera/mic permission denied' : 'Failed to start call', 'error');
-      setIsInCall(false);
-    }
-  };
-
-  useEffect(() => {
-    // Auto-start call on mount if requested
-    if (startWithVideo || startWithAudio) {
-      startCall(startWithVideo);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleVideo = () => {
-    const track = localStreamRef.current?.getVideoTracks()[0];
-    if (track) { track.enabled = !track.enabled; setIsVideoEnabled(track.enabled); }
-  };
-
-  const toggleAudio = () => {
-    if (isPushToTalk) return; // PTT controls audio
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (track) { track.enabled = !track.enabled; setIsAudioEnabled(track.enabled); }
-  };
-
-  const toggleScreenShare = async () => {
-    try {
-      if (!isScreenSharing) {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        const videoTrack = screenStream.getVideoTracks()[0];
-        peerConnections.current.forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-          if (sender) sender.replaceTrack(videoTrack);
-        });
-        if (localStreamRef.current) {
-          const old = localStreamRef.current.getVideoTracks()[0];
-          if (old) { localStreamRef.current.removeTrack(old); old.stop(); }
-          localStreamRef.current.addTrack(videoTrack);
-          setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
-        }
-        setIsScreenSharing(true);
-        videoTrack.onended = () => {
-          setIsScreenSharing(false);
-          restartCamera();
-        };
-      } else {
-        const track = localStreamRef.current?.getVideoTracks()[0];
-        if (track) { track.stop(); localStreamRef.current.removeTrack(track); }
-        setIsScreenSharing(false);
-        restartCamera();
-      }
-    } catch (err) {
-      showSnackbar('Screen sharing failed', 'error');
-    }
-  };
-
-  const restartCamera = async () => {
-    try {
-      const vs = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
-      const videoTrack = vs.getVideoTracks()[0];
-      peerConnections.current.forEach(pc => {
-        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-        if (sender) sender.replaceTrack(videoTrack);
-      });
-      localStreamRef.current?.addTrack(videoTrack);
-      setLocalStream(new MediaStream(localStreamRef.current?.getTracks() || []));
-      setIsVideoEnabled(true);
-    } catch (e) { /* camera unavailable */ }
-  };
-
-  const endCall = () => {
-    localStreamRef.current?.getTracks().forEach(t => t.stop());
-    localStreamRef.current = null;
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    peerConnections.current.forEach(pc => pc.close());
-    peerConnections.current.clear();
-    setLocalStream(null);
-    setRemoteStreams(new Map());
-    setIsVideoEnabled(false);
-    setIsAudioEnabled(false);
-    setIsScreenSharing(false);
-    setIsInCall(false);
-    socket.emit('end-call', { roomId, username });
-    showSnackbar('Call ended', 'info');
-  };
-
-  // ── Recording ──────────────────────────────────────────────────────────────
-  const startRecording = () => {
-    const stream = localStreamRef.current;
-    if (!stream) { showSnackbar('Start a call before recording', 'warning'); return; }
-    try {
-      recordedChunksRef.current = [];
-      const mr = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
-      mr.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `ConnectSphere_${roomId}_${Date.now()}.webm`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showSnackbar('Recording saved', 'success');
-      };
-      mr.start(1000);
-      mediaRecorderRef.current = mr;
-      setIsRecording(true);
-      showSnackbar('Recording started', 'info');
-    } catch (err) {
-      showSnackbar('Recording not supported in this browser', 'error');
-    }
-  };
-
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
-    mediaRecorderRef.current = null;
-    setIsRecording(false);
-  };
-
-  // ── Raise hand ─────────────────────────────────────────────────────────────
+  // ── Raise hand action ─────────────────────────────────────────────────────
   const toggleRaiseHand = () => {
     const next = !handRaised;
     setHandRaised(next);
     socket.emit('raise-hand', { roomId, username, raised: next });
   };
 
-  // ── Reactions ──────────────────────────────────────────────────────────────
-  const sendReaction = (emoji) => {
-    socket.emit('send-reaction', { roomId, username, emoji });
-    setShowReactionPicker(false);
-  };
-
-  const removeFloatingReaction = useCallback((id) => {
-    setFloatingReactions(prev => prev.filter(r => r.id !== id));
-  }, []);
-
-
-  // ── Chat ───────────────────────────────────────────────────────────────────
-  const sendMessage = async () => {
-    if (!message.trim()) return;
-    
-    const key = await cryptoKeyPromiseRef.current;
-    const encryptedMessage = await encryptMessage(message.trim(), key);
-    
-    socket.emit('send-message', {
-      roomId, username,
-      message: encryptedMessage,
-      timestamp: new Date().toISOString(),
-    });
-    setMessage('');
-  };
-
-  const getAvatarColor = (name) => {
-    const colors = ['#f44336','#e91e63','#9c27b0','#673ab7','#3f51b5','#2196f3',
-      '#03a9f4','#00bcd4','#009688','#4caf50','#8bc34a','#ffc107','#ff9800','#ff5722'];
-    return colors[(name?.charCodeAt(0) || 0) % colors.length];
-  };
+  // getAvatarColor and getInitials are now imported from utils/avatarColor.js
 
   // ── Render ─────────────────────────────────────────────────────────────────
   // Defined as JSX variables (NOT inner components) to prevent remount on every
@@ -1158,7 +530,8 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
   );
 
   // Dynamic remote streams layout generator (Grid vs Pinned)
-  const renderRemoteVideos = () => {
+  // Memoized: only re-runs when streams, participants, pins, or raised hands change
+  const renderRemoteVideos = React.useMemo(() => {
     const list = Array.from(remoteStreams);
     if (list.length === 0) {
       return (
@@ -1305,7 +678,8 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
         })}
       </Box>
     );
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteStreams, participants, raisedHands, pinnedUserId, isMobile, roomId]);
 
   // Video section (renders the remote video layout + local PIP)
   const videoSection = (
@@ -1318,7 +692,7 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       background: 'radial-gradient(ellipse at 10% 10%, rgba(88,101,242,0.08) 0%, transparent 50%), radial-gradient(ellipse at 90% 90%, rgba(235,69,158,0.05) 0%, transparent 50%), #0a0a0f',
       overflow: 'hidden',
     }}>
-      {renderRemoteVideos()}
+      {renderRemoteVideos}
 
       {/* Floating Picture-in-Picture Local Video */}
       {isInCall && (
