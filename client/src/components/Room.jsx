@@ -698,17 +698,22 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
       {isInCall && (
         <Box sx={{
           position: 'absolute',
-          bottom: 16,
-          right: 16,
-          width: { xs: 110, sm: 140, md: 180 },
+          bottom: { xs: 16, md: 24 },
+          right: { xs: 16, md: 24 },
+          width: { xs: 120, sm: 160, md: 200 },
           aspectRatio: '16/9',
-          borderRadius: '12px',
+          borderRadius: '16px',
           overflow: 'hidden',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-          border: '2px solid rgba(255,255,255,0.15)',
+          boxShadow: '0 12px 32px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.1) inset, 0 0 20px rgba(99,102,241,0.3)',
+          border: '2px solid rgba(255,255,255,0.2)',
           zIndex: 10,
           background: '#000',
-          transition: 'all 0.2s ease',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'scale(1.05)',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.7), 0 0 0 2px rgba(255,255,255,0.2) inset, 0 0 30px rgba(99,102,241,0.5)',
+            border: '2px solid rgba(99,102,241,0.5)',
+          }
         }}>
           <VideoPlayer
             ref={localVideoRef}
@@ -722,7 +727,7 @@ const Room = ({ username, roomId, password, e2eKey, maxParticipants = 8, avatarC
             handRaised={handRaised}
             userId={socket.id}
             roomId={roomId}
-            variant="thumb"
+            variant="large"
           />
         </Box>
       )}
